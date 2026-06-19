@@ -1,0 +1,28 @@
+// just some random ideas if you dont like them feel free to change them
+
+// comments look like this(?)
+
+// default data types like this?
+// uint8        u8
+// uint16       u16
+// uint32       u32
+// int8         i8
+// int16        i16
+// int32        i32
+//              ^ or maybe like this is cleaner(?)
+
+// which one?
+// c-like
+// int32 main(int32 argc, string[] argv)
+
+// or rust like
+// fn main(int32 argc, string[] argv) -> int32
+
+// or python like
+// def main(int32 argc, string[] argv) -> int32
+
+// i think we should force specify data types, otherwise it might be hard to make something which interprets them
+
+int32 main(int32 argc, string[] argv) {
+    print("Hello World!", target=stdout) // maybe we can do the function parameter thing where we can specify them whatever order we want like python does
+}
