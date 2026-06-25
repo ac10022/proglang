@@ -17,12 +17,19 @@
 
 // or rust like
 // fn main(int32 argc, string[] argv) -> int32
+// ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ this one asserts dominance imo (yehor)
 
 // or python like
 // def main(int32 argc, string[] argv) -> int32
 
 // i think we should force specify data types, otherwise it might be hard to make something which interprets them
+// ^^^^^^^^ the language must be strongly typed, I couldn't care less about coercions (yehor)
 
 int32 main(int32 argc, string[] argv) {
     print("Hello World!", target=stdout) // maybe we can do the function parameter thing where we can specify them whatever order we want like python does
+}
+
+// i would go with (yehor)
+fn main(i32 argc, char **argv) { // i have no idea whether pointers is doable for now
+	print("Hello World!\n", target=stdout); // i like the parameters
 }
