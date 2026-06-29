@@ -1,15 +1,15 @@
-#include "lexer.h"
-#include "../base/base.h"
+#include "../include/base.h"
+#include "../include/lexer.h"
 
 #include <stdlib.h>
 #include <ctype.h>
 #include <string.h>
 
-Token* L_NewToken(
+Token *L_NewToken(
     TokenType type, 
-    char* start_pointer, 
-    char* end_pointer,
-    FileInfo* source,
+    char *start_pointer, 
+    char *end_pointer,
+    FileInfo *source,
     uint64_t line_number
 ) {
     Token* tok = calloc(1, sizeof(Token));
@@ -23,8 +23,8 @@ Token* L_NewToken(
     return tok;
 }
 
-Token* L_ReadNumberLiteral(FileInfo* source, char* pointer, uint64_t* line_num) {
-    char* start = pointer++;
+Token* L_ReadNumberLiteral(FileInfo *source, char* pointer, uint64_t* line_num) {
+    char *start = pointer++;
 
     while (1) {
         // decimal scientific notation e.g., 1e+6 == 100_000
@@ -46,19 +46,19 @@ Token* L_ReadNumberLiteral(FileInfo* source, char* pointer, uint64_t* line_num) 
     return L_NewToken(TOKEN_NUMBER, start, pointer, source, *line_num);
 }
 
-Token* L_ReadStringLiteral(FileInfo* source, char* pointer, uint64_t* line_num) {
+Token *L_ReadStringLiteral(FileInfo* source, char* pointer, uint64_t* line_num) {
     TODO("string literal");
 }
 
-Token* L_ReadCharacterLiteral(FileInfo* source, char* pointer, uint64_t* line_num) {
+Token	*L_ReadCharacterLiteral(FileInfo* source, char* pointer, uint64_t* line_num) {
     TODO("character literal");
 }
 
-Token* L_Tokenize(FileInfo* source) {
-    char* pointer = source->contents; // start from beginning of file
+Token *L_Tokenize(FileInfo* source) {
+    char *pointer = source->contents; // start from beginning of file
 
     Token head = {};
-    Token* cur = &head; // start a linked list
+    Token *cur = &head; // start a linked list
 
     uint64_t line_num = 1;
 
@@ -113,13 +113,24 @@ Token* L_Tokenize(FileInfo* source) {
     return head.next;
 }
 
-Token* L_TokenizeFile(char* filepath) {
-    FileInfo* info = F_NewFileInfo(filepath);
+Token *L_TokenizeFile(char* filepath) {
+    FileInfo *info = F_NewFileInfo(filepath);
     if (!info) {
         ERR_GENERAL("Failed to tokenize file.");
         return NULL;
     }
     return L_Tokenize(info);
+}
+
+size_t L_TokensCount(Token *head) {
+	size_t count = 0;
+	Token *current = head;
+	while (current != NULL) {
+		count++;
+		current = current->next;
+	}
+
+	return count;
 }
 
 // function factorial(int n)

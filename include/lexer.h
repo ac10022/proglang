@@ -1,9 +1,10 @@
 #ifndef LEXER_H
 #define LEXER_H
 
+#include <stddef.h>
 #include <stdint.h>
 #include <stdbool.h>
-#include <../file/file.h>
+#include "file.h"
 
 typedef enum {
     TOKEN_KEYWORD_FUNCTION,
@@ -12,7 +13,7 @@ typedef enum {
     TOKEN_NUMBER,
     TOKEN_OPEN_PAREN,
     TOKEN_CLOSE_PAREN,
-    TOKEN_EOF,
+    TOKEN_EOF
 } TokenType;
 
 // i'm going to keep these basic types for now, we can extend it to arrays, classes, structs etc.
@@ -52,4 +53,13 @@ struct Token {
     uint16_t length;        // length of token (as a string)
 };
 
+Token *L_NewToken(TokenType type, char *start_pointer, char *end_pointer, FileInfo *source, uint64_t line_number);
+Token *L_ReadNumberLiteral(FileInfo *source, char *pointer, uint64_t *line_num);
+Token *L_ReadStringLiteral(FileInfo *source, char *pointer, uint64_t *line_num);
+Token *L_ReadCharacterLiteral(FileInfo *source, char *pointer, uint64_t *line_num);
+Token *L_Tokenize(FileInfo *source);
+Token *L_TokenizeFile(char *filepath);
+size_t L_TokensCount(Token *head);
+
 #endif
+

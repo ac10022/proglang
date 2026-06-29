@@ -1,0 +1,3 @@
+/home/yehor/dev/proglang/build/CMakeFiles/proglang.dir
+/home/yehor/dev/proglang/build/CMakeFiles/edit_cache.dir
+/home/yehor/dev/proglang/build/CMakeFiles/rebuild_cache.dir
