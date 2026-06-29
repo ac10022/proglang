@@ -7,21 +7,21 @@
 #include "file.h"
 
 typedef enum {
-    TOKEN_KEYWORD_FUNCTION,
-    TOKEN_SYMBOL_IDENTIFIER,
+    TOKEN_KEYWORD_FUNCTION 	= 1,
+    TOKEN_SYMBOL_IDENTIFIER = 2,
 
-    TOKEN_KEYWORD_IF,
-    TOKEN_KEYWORD_WHILE,
-    TOKEN_KEYWORD_FOR,
-    TOKEN_KEYWORD_RETURN,
+    TOKEN_KEYWORD_IF 		= 3,
+    TOKEN_KEYWORD_WHILE 	= 4,
+    TOKEN_KEYWORD_FOR 		= 5,
+    TOKEN_KEYWORD_RETURN 	= 6,
 
-    TOKEN_STRING_LITERAL,
-    TOKEN_NUMBER,
+    TOKEN_STRING_LITERAL 	= 7,
+    TOKEN_NUMBER 			= 8,
     
-    TOKEN_OPEN_PAREN,
-    TOKEN_CLOSE_PAREN,
-    TOKEN_PUNCTUATOR,
-    TOKEN_EOF,
+    TOKEN_OPEN_PAREN 		= 9,
+    TOKEN_CLOSE_PAREN 		= 10,
+    TOKEN_PUNCTUATOR 		= 11,
+    TOKEN_EOF 				= 12,
 } TokenType;
 
 // i'm going to keep these basic types for now, we can extend it to arrays, classes, structs etc.
