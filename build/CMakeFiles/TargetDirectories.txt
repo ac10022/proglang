@@ -1,3 +1,0 @@
-/home/lucam/cdev/proglang/build/CMakeFiles/proglang.dir
-/home/lucam/cdev/proglang/build/CMakeFiles/edit_cache.dir
-/home/lucam/cdev/proglang/build/CMakeFiles/rebuild_cache.dir
