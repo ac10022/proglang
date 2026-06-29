@@ -16,7 +16,19 @@
  * MACROS
  */
 
-#define ERR_GENERAL(msg) fprintf(stderr, "ERROR:\t%s", (msg))
+#define STOP_COMPILATION() \
+    do { \
+        fprintf(stderr, "Stopping compilation ...\n"); \
+        exit(1); \
+    } while (0) 
+
+#define ERR_GENERAL(fmt, ...) \
+    do { \
+        fprintf(stderr, "ERROR:\t" fmt "\n", ##__VA_ARGS__); \
+        STOP_COMPILATION(); \
+    } while (0)
+
+#define WARN_GENERAL(fmt, ...) fprintf(stderr, "WARNING:\t" fmt "\n", ##__VA_ARGS__)
 
 #define STR_STARTS_WITH(str, start) (strncmp(str, start, strlen(start)) == 0)
 

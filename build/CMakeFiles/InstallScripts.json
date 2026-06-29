@@ -1,7 +1,0 @@
-{
-	"InstallScripts" : 
-	[
-		"/home/yehor/dev/proglang/build/cmake_install.cmake"
-	],
-	"Parallel" : false
-}

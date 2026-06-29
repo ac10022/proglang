@@ -7,6 +7,6 @@ typedef struct {
 } FileInfo;
 
 FileInfo* F_NewFileInfo(char* filepath);
-
 char *F_ReadFile(char* filepath);
+
 #endif

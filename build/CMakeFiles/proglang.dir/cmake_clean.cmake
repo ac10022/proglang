@@ -1,5 +1,4 @@
 file(REMOVE_RECURSE
-  "CMakeFiles/proglang.dir/link.d"
   "CMakeFiles/proglang.dir/src/file.c.o"
   "CMakeFiles/proglang.dir/src/file.c.o.d"
   "CMakeFiles/proglang.dir/src/lexer.c.o"

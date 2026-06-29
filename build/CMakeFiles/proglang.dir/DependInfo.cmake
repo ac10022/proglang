@@ -8,10 +8,9 @@ set(CMAKE_DEPENDS_LANGUAGES
 
 # The set of dependency files which are needed:
 set(CMAKE_DEPENDS_DEPENDENCY_FILES
-  "/home/yehor/dev/proglang/src/file.c" "CMakeFiles/proglang.dir/src/file.c.o" "gcc" "CMakeFiles/proglang.dir/src/file.c.o.d"
-  "/home/yehor/dev/proglang/src/lexer.c" "CMakeFiles/proglang.dir/src/lexer.c.o" "gcc" "CMakeFiles/proglang.dir/src/lexer.c.o.d"
-  "/home/yehor/dev/proglang/src/main.c" "CMakeFiles/proglang.dir/src/main.c.o" "gcc" "CMakeFiles/proglang.dir/src/main.c.o.d"
-  "" "proglang" "gcc" "CMakeFiles/proglang.dir/link.d"
+  "/home/lucam/cdev/proglang/src/file.c" "CMakeFiles/proglang.dir/src/file.c.o" "gcc" "CMakeFiles/proglang.dir/src/file.c.o.d"
+  "/home/lucam/cdev/proglang/src/lexer.c" "CMakeFiles/proglang.dir/src/lexer.c.o" "gcc" "CMakeFiles/proglang.dir/src/lexer.c.o.d"
+  "/home/lucam/cdev/proglang/src/main.c" "CMakeFiles/proglang.dir/src/main.c.o" "gcc" "CMakeFiles/proglang.dir/src/main.c.o.d"
   )
 
 # Targets to which this target links which contain Fortran sources.

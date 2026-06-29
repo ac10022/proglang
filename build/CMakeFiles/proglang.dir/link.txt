@@ -1,1 +1,1 @@
-/usr/bin/cc -Wl,--dependency-file=CMakeFiles/proglang.dir/link.d CMakeFiles/proglang.dir/src/file.c.o CMakeFiles/proglang.dir/src/lexer.c.o CMakeFiles/proglang.dir/src/main.c.o -o proglang
+/usr/bin/cc CMakeFiles/proglang.dir/src/file.c.o CMakeFiles/proglang.dir/src/lexer.c.o CMakeFiles/proglang.dir/src/main.c.o -o proglang 

@@ -9,11 +9,19 @@
 typedef enum {
     TOKEN_KEYWORD_FUNCTION,
     TOKEN_SYMBOL_IDENTIFIER,
+
+    TOKEN_KEYWORD_IF,
+    TOKEN_KEYWORD_WHILE,
+    TOKEN_KEYWORD_FOR,
+    TOKEN_KEYWORD_RETURN,
+
     TOKEN_STRING_LITERAL,
     TOKEN_NUMBER,
+    
     TOKEN_OPEN_PAREN,
     TOKEN_CLOSE_PAREN,
-    TOKEN_EOF
+    TOKEN_PUNCTUATOR,
+    TOKEN_EOF,
 } TokenType;
 
 // i'm going to keep these basic types for now, we can extend it to arrays, classes, structs etc.
@@ -54,9 +62,19 @@ struct Token {
 };
 
 Token *L_NewToken(TokenType type, char *start_pointer, char *end_pointer, FileInfo *source, uint64_t line_number);
+
 Token *L_ReadNumberLiteral(FileInfo *source, char *pointer, uint64_t *line_num);
-Token *L_ReadStringLiteral(FileInfo *source, char *pointer, uint64_t *line_num);
+
+Token* L_ReadStringLiteral(FileInfo* source, char* pointer, uint64_t* line_num);
+char* L_FindStringEnd(char* pointer);
+uint8_t L_HexToInt(uint8_t hex_char);
 Token *L_ReadCharacterLiteral(FileInfo *source, char *pointer, uint64_t *line_num);
+uint64_t L_ReadEscapedCharacter(char* pointer, char** end);
+
+bool L_IsLegalIdentiferStart(char c);
+bool L_IsLegalIdentiferTail(char c);
+size_t L_ReadIdentifier(char *start);
+
 Token *L_Tokenize(FileInfo *source);
 Token *L_TokenizeFile(char *filepath);
 size_t L_TokensCount(Token *head);
