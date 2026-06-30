@@ -106,7 +106,7 @@ int main(int argc, char *argv[]) {
 				snprintf(token_type, 256, "STRING_LITERAL \"%s\"", current->str_val);  
 				break;
 			case TOKEN_INT_LITERAL:
-				snprintf(token_type, 256, "INT_LITERAL (%llu)", current->int_val);     
+				snprintf(token_type, 256, "INT_LITERAL (%lu)", current->int_val);     
 				break;
 			case TOKEN_FLOAT_LITERAL:
 				snprintf(token_type, 256, "FLOAT_LITERAL (%Lf)", current->float_val);  
