@@ -1,7 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
-#include <string.h>
-#include "../include/lexer.h"
+#include "../include/proglang.h"
 
 const char* punc_to_str(Punctuator punc) {
     switch (punc) {
