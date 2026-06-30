@@ -1,5 +1,3 @@
-#include <stdio.h>
-#include <stdlib.h>
 #include "../include/proglang.h"
 
 const char* punc_to_str(Punctuator punc) {
@@ -68,6 +66,7 @@ int main(int argc, char *argv[]) {
 		fprintf(stderr, "Usage: proglang <source file>\n");
 		return EXIT_FAILURE;
 	}
+
 	char *file_path = argv[1];
 	Token *tokens = L_TokenizeFile(file_path);
 
@@ -118,15 +117,15 @@ int main(int argc, char *argv[]) {
 				break;
 		}
 		printf("%s ", token_type);
-		// printf("%p %lu %Lf %s %s %lu %d",
-		// 	(void*) current->next, 
-    	// 	current->int_val,
-		// 	current->float_val,  
-    	// 	current->str_val, 
-    	// 	current->source->filepath,     
-    	// 	current->line_number,
-		// 	current->punc_type
-		// );
+		printf("%p %lu %Lf %s %s %lu %d",
+			(void*) current->next, 
+    		current->int_val,
+			current->float_val,  
+    		current->str_val, 
+    		current->source->filepath,     
+    		current->line_number,
+			current->punc_type
+		);
 		printf("\n");
 
 		current = current->next;

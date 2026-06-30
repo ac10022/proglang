@@ -13,5 +13,5 @@ fn main(i32 argc, u8** argv) {
     string input = input("pick n for fib(n)");
     u32 n = s_to_u32(input);
     u32 res = fib(n);
-    printf(res);
+    print(res);
 }
