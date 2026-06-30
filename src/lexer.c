@@ -5,6 +5,75 @@
 #include <ctype.h>
 #include <string.h>
 
+typedef struct {
+    const char* symbol;
+    Punctuator mapping;
+} PunctuatorKVP;
+
+// go from 3 char to 2 char to prevent exiting check too early
+static const PunctuatorKVP custom_punctuators[] = {
+    // 3 char
+    {"<<=", PUNC_LS_EQ},
+    {">>=", PUNC_RS_EQ},
+    
+    // 2 char
+    {"<<", PUNC_LS},
+    {">>", PUNC_RS},
+    {"==", PUNC_EQUALITY},
+    {"!=", PUNC_INEQAULITY},
+    {"<=", PUNC_LEQ},
+    {">=", PUNC_GEQ},
+    {"**", PUNC_POW},
+    {"++", PUNC_INCREMENT},
+    {"--", PUNC_DECREMENT},
+    {"+=", PUNC_ADDEQ},
+    {"-=", PUNC_SUBEQ},
+    {"*=", PUNC_MULEQ},
+    {"/=", PUNC_DIVEQ},
+    {"%=", PUNC_MODEQ},
+    {"&=", PUNC_ANDEQ},
+    {"|=", PUNC_OREQ},
+    {"^=", PUNC_XOREQ},
+    {"&&", PUNC_LOGICAL_AND},
+    {"||", PUNC_LOGICAL_OR},
+
+    // 1 char
+    {">", PUNC_GREATER},
+    {"<", PUNC_LESSTHAN},
+    {"+", PUNC_ADDITION},
+    {"-", PUNC_SUBTRACTION},
+    {"*", PUNC_MULTIPLY},
+    {"/", PUNC_DIVIDE},
+    {"%", PUNC_MOD},
+    {"~", PUNC_BITWISE_NOT},
+    {"=", PUNC_ASSIGNMENT},
+    {"!", PUNC_LOGICAL_NOT},
+    {"(", PUNC_OPEN_PAREN},
+    {")", PUNC_CLOSE_PAREN},
+    {"[", PUNC_OPEN_SQUARE},
+    {"]", PUNC_CLOSE_SQUARE},
+    {",", PUNC_COMMA},
+    {".", PUNC_DOT},
+    {"{", PUNC_OPEN_CURLY},
+    {"}", PUNC_CLOSE_CURLY},
+    {";", PUNC_SEMICOLON}
+};
+
+typedef struct {
+    Type type;
+    uint8_t size;
+} TypeSizeKVP;
+
+static const TypeSizeKVP primitive_type_sizes[] = {
+    {TYPE_BOOL, 8},
+    {TYPE_INT8, 8},
+    {TYPE_INT16, 16},
+    {TYPE_INT32, 32},
+    {TYPE_INT64, 64},
+    {TYPE_FLOAT32, 32},
+    {TYPE_FLOAT64, 64},
+};
+
 Token* L_NewToken(
     TokenType type, 
     char* start_pointer, 
@@ -24,6 +93,8 @@ Token* L_NewToken(
 
 Token* L_ReadNumberLiteral(FileInfo* source, char* pointer, uint64_t* line_num) {
     char* start = pointer++;
+    bool is_float = false;
+
     while (1) {
         // decimal scientific notation e.g., 1e+6 == 100_000
         // hex binary exponent, e.g., 0x1.8p3 == 1.5 * 2^3 = 12
@@ -31,14 +102,29 @@ Token* L_ReadNumberLiteral(FileInfo* source, char* pointer, uint64_t* line_num) 
             && strchr("eEpP", *pointer) 
             && strchr("+-", *(pointer + 1))) {
                 pointer += 2;
+                is_float = true;
         }
-        else if (isalnum(*pointer) || *pointer == '.') {
+        else if (*pointer == '.') {
+            pointer++;
+            is_float = true;
+        }
+        else if (isalnum(*pointer)) {
             pointer++;
         }
         else break;
     }
 
-    return L_NewToken(TOKEN_NUMBER, start, pointer, source, *line_num);
+    TokenType type = is_float ? TOKEN_FLOAT_LITERAL : TOKEN_INT_LITERAL;
+    Token* tok = L_NewToken(type, start, pointer, source, *line_num);
+
+    char* end; // dont actually need this for lexer but required for strtold and strtoull
+    if (is_float) {
+        tok->float_val = strtold(start, &end);
+    } else {
+        tok->int_val = strtoull(start, &end, 0);
+    }
+
+    return tok;
 }
 
 char* L_FindStringEnd(char* pointer) {
@@ -135,28 +221,100 @@ uint8_t L_HexToInt(uint8_t hex_char) {
 }
 
 Token* L_ReadCharacterLiteral(FileInfo* source, char* pointer, uint64_t* line_num) {
-    char* escaped_char = pointer + 1;
-    if (*escaped_char == '\0') {
-        ERR_GENERAL("Invalid char literal at %p", escaped_char);
+    char* start_char = pointer + 1;
+    if (*start_char == '\0' || *start_char == '\'') {
+        ERR_GENERAL("Invalid or empty char literal at %p", start_char);
     }
 
-    uint64_t value = L_ReadEscapedCharacter(escaped_char + 1, &escaped_char);
-    char* end = strchr(escaped_char, '\'');
+    uint64_t value = 0;
+    char* next = start_char;
+
+    if (*start_char == '\\') {
+        value = L_ReadEscapedCharacter(start_char + 1, &next);
+    }
+    else {
+        value = (unsigned char)(*start_char);
+        next = start_char + 1;
+    }
+
+    char* end = strchr(next, '\'');
     if (!end) {
-        ERR_GENERAL("Unclosed char literal at %p", escaped_char);
+        ERR_GENERAL("Unclosed char literal at %p", next);
     }
 
-    Token* tok = L_NewToken(TOKEN_NUMBER, pointer, end + 1, source, *line_num);
+    Token* tok = L_NewToken(TOKEN_INT_LITERAL, pointer, end + 1, source, *line_num);
     tok->int_val = value;
     return tok;
 }
 
-TokenType L_GetIdentifierType(char* pointer, size_t len) {
+TokenType L_GetIdentifierType(char* pointer, size_t len, Type* type, bool* is_unsigned) {
     if (len == 2 && strncmp(pointer, "fn", 2) == 0) return TOKEN_KEYWORD_FUNCTION;
     if (len == 2 && strncmp(pointer, "if", 2) == 0) return TOKEN_KEYWORD_IF;
     if (len == 5 && strncmp(pointer, "while", 5) == 0) return TOKEN_KEYWORD_WHILE;
     if (len == 3 && strncmp(pointer, "for", 3) == 0) return TOKEN_KEYWORD_FOR;
     if (len == 6 && strncmp(pointer, "return", 6) == 0) return TOKEN_KEYWORD_RETURN;
+
+    *is_unsigned = false;
+
+    if (len == 2 && strncmp(pointer, "b8", 2) == 0) {
+        *type = TYPE_BOOL;
+        return TOKEN_PRIMITIVE_TYPE_SPECIFIER;
+    } 
+
+    if (len == 2 && strncmp(pointer, "i8", 2) == 0) {
+        *type = TYPE_INT8;
+        return TOKEN_PRIMITIVE_TYPE_SPECIFIER;
+    } 
+
+    if (len == 2 && strncmp(pointer, "u8", 2) == 0) {
+        *type = TYPE_INT8;
+        *is_unsigned = true;
+        return TOKEN_PRIMITIVE_TYPE_SPECIFIER;
+    } 
+
+    if (len == 3 && strncmp(pointer, "i16", 3) == 0) {
+        *type = TYPE_INT16;
+        return TOKEN_PRIMITIVE_TYPE_SPECIFIER;
+    } 
+    
+    if (len == 3 && strncmp(pointer, "u16", 3) == 0) {
+        *type = TYPE_INT16;
+        *is_unsigned = true;
+        return TOKEN_PRIMITIVE_TYPE_SPECIFIER;
+    } 
+
+    if (len == 3 && strncmp(pointer, "i32", 3) == 0) {
+        *type = TYPE_INT32;
+        return TOKEN_PRIMITIVE_TYPE_SPECIFIER;
+    } 
+
+    if (len == 3 && strncmp(pointer, "u32", 3) == 0) {
+        *type = TYPE_INT32;
+        *is_unsigned = true;
+        return TOKEN_PRIMITIVE_TYPE_SPECIFIER;
+    } 
+
+    if (len == 3 && strncmp(pointer, "i64", 3) == 0) {
+        *type = TYPE_INT64;
+        return TOKEN_PRIMITIVE_TYPE_SPECIFIER;
+    } 
+
+    if (len == 3 && strncmp(pointer, "u64", 3) == 0) {
+        *type = TYPE_INT64;
+        *is_unsigned = true;
+        return TOKEN_PRIMITIVE_TYPE_SPECIFIER;
+    } 
+
+    if (len == 3 && strncmp(pointer, "f32", 3) == 0) {
+        *type = TYPE_FLOAT32;
+        return TOKEN_PRIMITIVE_TYPE_SPECIFIER;
+    } 
+
+    if (len == 3 && strncmp(pointer, "f64", 3) == 0) {
+        *type = TYPE_FLOAT64;
+        return TOKEN_PRIMITIVE_TYPE_SPECIFIER;
+    } 
+
     return TOKEN_SYMBOL_IDENTIFIER;
 }
 
@@ -176,45 +334,30 @@ size_t L_ReadIdentifier(char *start) {
     return pointer - start;
 }
 
-size_t L_ReadPunctuator(char* start) {
-    char *custom_punctuators[] = {
-        // bit operators
-        "<<=",
-        ">>=",
-        ">>",
-        "<<",
-        
-        // (in)equality
-        "==",
-        "!=",
-        "<=",
-        ">=",
-        
-        // arithmetic
-        "++",
-        "--",
-        "+=",
-        "-=",
-        "*=",
-        "/=",
-        "%=",
+Punctuator L_ReadPunctuator(char* start, char** end, size_t* length) {
+    size_t total_punctuators = sizeof(custom_punctuators) / sizeof(custom_punctuators[0]);
 
-        // bitwise
-        "&=",
-        "|=",
-        "^=",
-        
-        // logic
-        "&&",
-        "||",
-    };
-
-    for (size_t i = 0; i < sizeof(custom_punctuators) / sizeof(*custom_punctuators); i++)
-    {
-        if (STR_STARTS_WITH(start, custom_punctuators[i])) return strlen(custom_punctuators[i]);
+    for (size_t i = 0; i < total_punctuators; i++) {
+        if (STR_STARTS_WITH(start, custom_punctuators[i].symbol)) {
+            *length = strlen(custom_punctuators[i].symbol);
+            *end = start + (int)(*length);
+            return custom_punctuators[i].mapping;
+        }
     }
 
-    return ispunct(*start) ? 1 : 0;
+    *end = start;
+    return PUNC_INVALID;
+}
+
+size_t L_GetTypeSize(Type* type) {
+    size_t total_types = sizeof(primitive_type_sizes) / sizeof(primitive_type_sizes[0]);
+
+    for (size_t i = 0; i < total_types; i++)
+    {
+        if (*type == primitive_type_sizes[i].type) return primitive_type_sizes[i].size;
+    }
+    
+    return 0;
 }
 
 Token* L_Tokenize(FileInfo* source) {
@@ -271,34 +414,35 @@ Token* L_Tokenize(FileInfo* source) {
             continue;
         }
 
-        // open parenthesis
-        if (*pointer == '(') {
-            cur = cur->next = L_NewToken(TOKEN_OPEN_PAREN, pointer, pointer + 1, source, line_num);
-            pointer++;
-            continue;
-        }
-
-        // close parenthesis
-        if (*pointer == ')') {
-            cur = cur->next = L_NewToken(TOKEN_CLOSE_PAREN, pointer, pointer + 1, source, line_num);
-            pointer++;
-            continue;
-        }
-
         // identifiers or keywords
         size_t identifer_len = L_ReadIdentifier(pointer);
         if (identifer_len > 0) {
-            TokenType type = L_GetIdentifierType(pointer, identifer_len);
-            cur = cur->next = L_NewToken(type, pointer, pointer + (int)identifer_len, source, line_num);
+            Type primitive_type = 0;
+            bool is_unsigned = false;
+
+            TokenType type = L_GetIdentifierType(pointer, identifer_len, &primitive_type, &is_unsigned);
+
+            Token* new_tok = L_NewToken(type, pointer, pointer + (int)identifer_len, source, line_num);
+
+            if (type == TOKEN_PRIMITIVE_TYPE_SPECIFIER) {
+                new_tok->typeinfo = calloc(1, sizeof(TypeInfo));
+                new_tok->typeinfo->is_unsigned = is_unsigned;
+                new_tok->typeinfo->type = primitive_type;
+                new_tok->typeinfo->size = L_GetTypeSize(&primitive_type);
+            }
+
+            cur = cur->next = new_tok;
             pointer += identifer_len;
             continue;
         }
 
         // punctuators
-        size_t punctuator_len = L_ReadPunctuator(pointer);
-        if (punctuator_len > 0) {
-            cur = cur->next = L_NewToken(TOKEN_PUNCTUATOR, pointer, pointer + (int)punctuator_len, source, line_num);
-            pointer += punctuator_len;
+        size_t punctuator_len = 0;
+        Punctuator punc_type = L_ReadPunctuator(pointer, &pointer, &punctuator_len);
+        if (punc_type != PUNC_INVALID && punctuator_len != 0) {
+            Token* new_tok = L_NewToken(TOKEN_PUNCTUATOR, pointer - (int)punctuator_len, pointer, source, line_num);
+            new_tok->punc_type = punc_type;
+            cur = cur->next = new_tok;
             continue;
         }
 

@@ -7,41 +7,96 @@
 #include "file.h"
 
 typedef enum {
-    TOKEN_KEYWORD_FUNCTION 	= 1,
-    TOKEN_SYMBOL_IDENTIFIER = 2,
+    TOKEN_KEYWORD_FUNCTION,
+    TOKEN_SYMBOL_IDENTIFIER, 
+    TOKEN_PRIMITIVE_TYPE_SPECIFIER,
 
-    TOKEN_KEYWORD_IF 		= 3,
-    TOKEN_KEYWORD_WHILE 	= 4,
-    TOKEN_KEYWORD_FOR 		= 5,
-    TOKEN_KEYWORD_RETURN 	= 6,
+    TOKEN_KEYWORD_IF,
+    TOKEN_KEYWORD_WHILE,
+    TOKEN_KEYWORD_FOR,
+    TOKEN_KEYWORD_RETURN,
 
-    TOKEN_STRING_LITERAL 	= 7,
-    TOKEN_NUMBER 			= 8,
+    TOKEN_STRING_LITERAL,
+    TOKEN_INT_LITERAL,
+    TOKEN_FLOAT_LITERAL,
     
-    TOKEN_OPEN_PAREN 		= 9,
-    TOKEN_CLOSE_PAREN 		= 10,
-    TOKEN_PUNCTUATOR 		= 11,
-    TOKEN_EOF 				= 12,
+    TOKEN_PUNCTUATOR, 
+    TOKEN_EOF,
 } TokenType;
 
 // i'm going to keep these basic types for now, we can extend it to arrays, classes, structs etc.
 typedef enum {
     TYPE_VOID,
-    TYPE_BOOL,
-    TYPE_CHAR,
-    TYPE_INT8,
-    TYPE_INT16,
-    TYPE_INT32,
-    TYPE_INT64,
-    TYPE_FLOAT32,
-    TYPE_FLOAT64,
-    TYPE_POINTER,
+    TYPE_BOOL,          // b8     v there is a separate flag for signed/unsigned
+    TYPE_INT8,          // i8  or u8
+    TYPE_INT16,         // i16 or u16
+    TYPE_INT32,         // i32 or u32
+    TYPE_INT64,         // i64 or u64
+    TYPE_FLOAT32,       // f32
+    TYPE_FLOAT64,       // f64
 } Type;
+
+typedef enum {
+    // bit operators
+    PUNC_LS_EQ,         // <<=
+    PUNC_RS_EQ,         // >>=
+    PUNC_LS,            // <<
+    PUNC_RS,            // >>
+    
+    // (in)equality
+    PUNC_EQUALITY,      // ==
+    PUNC_INEQAULITY,    // !=   
+    PUNC_LEQ,           // <=
+    PUNC_GEQ,           // >=
+    PUNC_GREATER,       // >
+    PUNC_LESSTHAN,      // <
+        
+    // arithmetic
+    PUNC_ADDITION,      // +
+    PUNC_SUBTRACTION,   // -
+    PUNC_MULTIPLY,      // *
+    PUNC_DIVIDE,        // /
+    PUNC_MOD,           // %
+    PUNC_POW,           // **
+    PUNC_INCREMENT,     // ++
+    PUNC_DECREMENT,     // --
+    PUNC_ADDEQ,         // +=
+    PUNC_SUBEQ,         // -=
+    PUNC_MULEQ,         // *=
+    PUNC_DIVEQ,         // /=
+    PUNC_MODEQ,         // %=
+
+    // bitwise
+    PUNC_ANDEQ,         // &=
+    PUNC_OREQ,          // |=
+    PUNC_XOREQ,         // ^=   
+    PUNC_BITWISE_NOT,   // ~       
+        
+    // logic
+    PUNC_ASSIGNMENT,    // =
+    PUNC_LOGICAL_AND,   // &&
+    PUNC_LOGICAL_OR,    // ||
+    PUNC_LOGICAL_NOT,   // !
+
+    // symbols
+    PUNC_OPEN_PAREN,    // (
+    PUNC_CLOSE_PAREN,   // )
+    PUNC_OPEN_SQUARE,   // [
+    PUNC_CLOSE_SQUARE,  // ]
+    PUNC_COMMA,         // ,
+    PUNC_DOT,           // .
+    PUNC_OPEN_CURLY,    // {
+    PUNC_CLOSE_CURLY,   // }
+    PUNC_SEMICOLON,     // ;
+
+    PUNC_INVALID,       // not a valid punctuator
+} Punctuator;
 
 typedef struct {
     Type type;
     uint8_t size;           // value of sizeof(type)
     bool is_unsigned;
+    // bool is_pointer;     // TODO i have no idea how though
 } TypeInfo;
 
 typedef struct Token Token;
@@ -53,6 +108,7 @@ struct Token {
     uint64_t int_val;       // if the token is an integer TOKEN_NUMBER, store the literal
     long double float_val;  // if the token is a float TOKEN_NUMBER, store the literal
     char* str_val;          // if the toekn is a TOKEN_STRING_LITERAL, store the literal
+    Punctuator punc_type;   // if the token is a TOKEN_PUNCTUATOR, store the type
 
     TypeInfo* typeinfo;
     FileInfo* source;       // the file which we found the token in

@@ -1,5 +1,15 @@
 fn main(i32 argc, char** argv) {
 	i32 x = 1;
+	f32 f = 0.0004;
+	f64 d = 3.14159265;
+	b8 bool = true;
+
+	u32 y = 12*12;
+	u8 char = 'c';
+
+	while (x < 15) {
+		f *= 10.0;
+	}
 
 	return 1;
 }
