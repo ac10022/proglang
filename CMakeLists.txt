@@ -14,3 +14,7 @@ target_include_directories(proglang
     PRIVATE 
         ${PROJECT_SOURCE_DIR}/include
 )
+
+target_compile_definitions(proglang PRIVATE
+    $<$<CONFIG:Debug>:DEBUG>
+)
