@@ -37,6 +37,8 @@ static const PunctuatorKVP custom_punctuators[] = {
     {"^=", PUNC_XOREQ},
     {"&&", PUNC_LOGICAL_AND},
     {"||", PUNC_LOGICAL_OR},
+    {"..", PUNC_DOTDOT},
+    {"->", PUNC_ARROW},
 
     // 1 char
     {">", PUNC_GREATER},
@@ -49,6 +51,7 @@ static const PunctuatorKVP custom_punctuators[] = {
     {"~", PUNC_BITWISE_NOT},
     {"=", PUNC_ASSIGNMENT},
     {"!", PUNC_LOGICAL_NOT},
+    {"?", PUNC_QUESTION_MARK},
     {"(", PUNC_OPEN_PAREN},
     {")", PUNC_CLOSE_PAREN},
     {"[", PUNC_OPEN_SQUARE},
@@ -57,7 +60,10 @@ static const PunctuatorKVP custom_punctuators[] = {
     {".", PUNC_DOT},
     {"{", PUNC_OPEN_CURLY},
     {"}", PUNC_CLOSE_CURLY},
-    {";", PUNC_SEMICOLON}
+    {";", PUNC_SEMICOLON},
+    {"&", PUNC_AMPERSAND},
+    {"|", PUNC_BITWISE_OR},
+    {"^", PUNC_BITWISE_XOR}
 };
 
 typedef struct {
@@ -254,6 +260,11 @@ TokenType L_GetIdentifierType(char* pointer, size_t len, Type* type, bool* is_un
     if (len == 5 && strncmp(pointer, "while", 5) == 0) return TOKEN_KEYWORD_WHILE;
     if (len == 3 && strncmp(pointer, "for", 3) == 0) return TOKEN_KEYWORD_FOR;
     if (len == 6 && strncmp(pointer, "return", 6) == 0) return TOKEN_KEYWORD_RETURN;
+    if (len == 5 && strncmp(pointer, "break", 5) == 0) return TOKEN_KEYWORD_BREAK;
+    if (len == 8 && strncmp(pointer, "continue", 6) == 0) return TOKEN_KEYWORD_CONTINUE;
+    if (len == 6 && strncmp(pointer, "import", 6) == 0) return TOKEN_KEYWORD_IMPORT;
+    if (len == 2 && strncmp(pointer, "in", 6) == 0) return TOKEN_KEYWORD_IN;
+    if (len == 4 && strncmp(pointer, "NULL", 4) == 0) return TOKEN_NULL;
 
     *is_unsigned = false;
 
@@ -268,6 +279,12 @@ TokenType L_GetIdentifierType(char* pointer, size_t len, Type* type, bool* is_un
     } 
 
     if (len == 2 && strncmp(pointer, "u8", 2) == 0) {
+        *type = TYPE_INT8;
+        *is_unsigned = true;
+        return TOKEN_PRIMITIVE_TYPE_SPECIFIER;
+    } 
+
+    if (len == 4 && strncmp(pointer, "char", 4) == 0) {
         *type = TYPE_INT8;
         *is_unsigned = true;
         return TOKEN_PRIMITIVE_TYPE_SPECIFIER;
@@ -430,6 +447,22 @@ Token* L_Tokenize(FileInfo* source) {
                 new_tok->typeinfo->is_unsigned = is_unsigned;
                 new_tok->typeinfo->type = primitive_type;
                 new_tok->typeinfo->size = L_GetTypeSize(&primitive_type);
+
+                char* peek = pointer + identifier_len;
+
+                // pointer work, calculate depth, and if it is optional
+                while (*peek == '*') {
+                    new_tok->typeinfo->pointer_depth++;
+                    peek++;
+                }
+
+                if (new_tok->typeinfo->pointer_depth > 0 && *peek == '?') {
+                    new_tok->typeinfo->is_optional = true;
+                    peek++;
+                }
+
+                identifier_len = peek - pointer;
+                new_tok->length = identifier_len;
             } else { // its a varaible identifer
 				new_tok->lexeme = malloc(identifier_len + 1);
 				memcpy(new_tok->lexeme, pointer, identifier_len);
@@ -489,6 +522,8 @@ const char* punc_to_str(Punctuator punc) {
         case PUNC_INEQAULITY:   return "!=";
         case PUNC_LEQ:          return "<=";
         case PUNC_GEQ:          return ">=";
+        case PUNC_DOTDOT:       return "..";
+        case PUNC_ARROW:        return "->";
         case PUNC_GREATER:      return ">";
         case PUNC_LESSTHAN:     return "<";
         case PUNC_ADDITION:     return "+";
@@ -507,11 +542,15 @@ const char* punc_to_str(Punctuator punc) {
         case PUNC_ANDEQ:        return "&=";
         case PUNC_OREQ:         return "|=";
         case PUNC_XOREQ:        return "^=";
+        case PUNC_AMPERSAND:    return "&";
+        case PUNC_BITWISE_OR:   return "|";
+        case PUNC_BITWISE_XOR:  return "^";
         case PUNC_BITWISE_NOT:  return "~";
         case PUNC_ASSIGNMENT:   return "=";
         case PUNC_LOGICAL_AND:  return "&&";
         case PUNC_LOGICAL_OR:   return "||";
         case PUNC_LOGICAL_NOT:  return "!";
+        case PUNC_QUESTION_MARK:return "?";
         case PUNC_OPEN_PAREN:   return "(";
         case PUNC_CLOSE_PAREN:  return ")";
         case PUNC_OPEN_SQUARE:  return "[";
@@ -579,6 +618,9 @@ const char *token_type_to_str(Token *current) {
 		case TOKEN_PUNCTUATOR: 
 			return "PUNCTUATOR"; 
 			break;
+        case TOKEN_NULL:
+            return "NULL_TOKEN";
+            break;
 		case TOKEN_EOF:
 			return "END OF FILE"; 
 			break;
@@ -589,7 +631,7 @@ const char *token_type_to_str(Token *current) {
 void print_tokens(Token *tokens) {
 	Token *current = tokens;
 	while (current != NULL) {
-		printf("%s %s %lu %Lf %s %s %lu %s",
+		printf("%s %s %lu %Lf %s %s %lu %s %hu %s",
 			token_type_to_str(current),
 			current->lexeme == NULL ? "(null)" : current->lexeme,
     		current->int_val,
@@ -597,7 +639,9 @@ void print_tokens(Token *tokens) {
     		current->str_val, 
     		current->source->filepath,     
     		current->line_number,
-			current->punc_type != NULL ? punc_to_str(current->punc_type) : "(null)"
+			current->punc_type != NULL ? punc_to_str(current->punc_type) : "(null)",
+            current->token_type == TOKEN_PRIMITIVE_TYPE_SPECIFIER ?   current->typeinfo->pointer_depth : 0,
+            current->token_type == TOKEN_PRIMITIVE_TYPE_SPECIFIER ?(current->typeinfo->is_optional ? "nullable" : "nonnull") : "N/A"
 		);
 		printf("\n");
 

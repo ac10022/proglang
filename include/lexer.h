@@ -12,14 +12,20 @@ typedef enum {
     TOKEN_PRIMITIVE_TYPE_SPECIFIER,
 
     TOKEN_KEYWORD_IF,
+    TOKEN_KEYWORD_ELSE,
     TOKEN_KEYWORD_WHILE,
     TOKEN_KEYWORD_FOR,
     TOKEN_KEYWORD_RETURN,
+    TOKEN_KEYWORD_BREAK,
+    TOKEN_KEYWORD_CONTINUE,
+    TOKEN_KEYWORD_IMPORT,
+    TOKEN_KEYWORD_IN,       //  for (i in 1..100) syntax
 
     TOKEN_STRING_LITERAL,
     TOKEN_INT_LITERAL,
     TOKEN_FLOAT_LITERAL,
     
+    TOKEN_NULL,
     TOKEN_PUNCTUATOR, 
     TOKEN_EOF,
 } TokenType;
@@ -67,10 +73,13 @@ typedef enum {
     PUNC_MODEQ,         // %=
 
     // bitwise
+    PUNC_AMPERSAND,     // &
+    PUNC_BITWISE_OR,    // |
+    PUNC_BITWISE_XOR,   // ^
+    PUNC_BITWISE_NOT,   // ~       
     PUNC_ANDEQ,         // &=
     PUNC_OREQ,          // |=
     PUNC_XOREQ,         // ^=   
-    PUNC_BITWISE_NOT,   // ~       
         
     // logic
     PUNC_ASSIGNMENT,    // =
@@ -85,9 +94,12 @@ typedef enum {
     PUNC_CLOSE_SQUARE,  // ]
     PUNC_COMMA,         // ,
     PUNC_DOT,           // .
+    PUNC_DOTDOT,        // ..
     PUNC_OPEN_CURLY,    // {
     PUNC_CLOSE_CURLY,   // }
     PUNC_SEMICOLON,     // ;
+    PUNC_ARROW,         // ->
+    PUNC_QUESTION_MARK, // ?
 
     PUNC_INVALID,       // not a valid punctuator
 } Punctuator;
@@ -96,7 +108,11 @@ typedef struct {
     Type type;
     uint8_t size;           // value of sizeof(type)
     bool is_unsigned;
-    // bool is_pointer;     // TODO i have no idea how though
+    
+    // ok so if you look in syntax.proglang, i suggest a zig kind of pointer (to avoid NULL)
+    uint16_t pointer_depth; // i.e. char** has pointer_depth 2
+                            // to check if something is a pointer, just do pointer_depth > 0        
+    bool is_optional;       // is an optional pointer, if true, then this pointer can be NULL, otherwise no
 } TypeInfo;
 
 typedef struct Token Token;
@@ -105,7 +121,7 @@ struct Token {
     TokenType token_type;
     Token* next;            // during tokenisation, we form a linked list of tokens
 	
-	char *lexeme; // variable or function name
+	char *lexeme;           // variable or function name
 
     uint64_t int_val;       // if the token is an integer TOKEN_NUMBER, store the literal
     long double float_val;  // if the token is a float TOKEN_NUMBER, store the literal

@@ -7,8 +7,16 @@ fn main(i32 argc, char** argv) {
 	u32 y = 12*12;
 	u8 char = 'c';
 
+	f64 big = 1e+10;
+	f64 small = 1e-5;
+	f64 weird_hex_thing = 0x1.8p3;
+
+	u8 char2 = '\x20';
+	u8 char3 = '\12';
+
 	while (x < 15) {
 		f *= 10.0;
+		x++;
 	}
 
 	return 0;

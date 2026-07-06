@@ -1,0 +1,8 @@
+fn main(void) -> void {
+    char c = 'a';           //
+    char* p1 = &c;          //
+    char** p2 = &p1;        // normal nonnull pointers
+    char*** p3 = &p2;       //
+
+    char****? p4 = NULL;    // nullable pointer
+}
