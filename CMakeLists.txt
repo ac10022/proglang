@@ -5,6 +5,7 @@ project(proglang)
 set(SOURCES
 	src/file.c
 	src/lexer.c
+	src/parser.c
 	src/main.c
 )
 

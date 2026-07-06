@@ -1,7 +1,4 @@
 #include "../include/proglang.h"
-#ifdef DEBUG
-	#include "helpers.c"
-#endif
 
 int main(int argc, char *argv[]) {
 	if (argc != 2) {
@@ -13,8 +10,8 @@ int main(int argc, char *argv[]) {
 	Token *tokens = L_TokenizeFile(file_path);
 
 #ifdef DEBUG
-	printf("DEBUG\n");
 	print_tokens(tokens);
 #endif
 
+	// ASTNode *ast = generate_ast(tokens);
 }

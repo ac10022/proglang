@@ -102,8 +102,10 @@ typedef struct {
 typedef struct Token Token;
 
 struct Token {
-    TokenType type;
+    TokenType token_type;
     Token* next;            // during tokenisation, we form a linked list of tokens
+	
+	char *lexeme; // variable or function name
 
     uint64_t int_val;       // if the token is an integer TOKEN_NUMBER, store the literal
     long double float_val;  // if the token is a float TOKEN_NUMBER, store the literal
@@ -117,7 +119,7 @@ struct Token {
     uint16_t length;        // length of token (as a string)
 };
 
-Token *L_NewToken(TokenType type, char *start_pointer, char *end_pointer, FileInfo *source, uint64_t line_number);
+Token *L_NewToken(TokenType token_type, char *start_pointer, char *end_pointer, FileInfo *source, uint64_t line_number);
 
 Token *L_ReadNumberLiteral(FileInfo *source, char *pointer, uint64_t *line_num);
 
@@ -134,6 +136,13 @@ size_t L_ReadIdentifier(char *start);
 Token *L_Tokenize(FileInfo *source);
 Token *L_TokenizeFile(char *filepath);
 size_t L_TokensCount(Token *head);
+
+#ifdef DEBUG
+const char *punc_to_str(Punctuator punc);
+const char *type_to_str(Type type, bool is_unsigned);
+const char *token_type_to_str(Token *current);
+void print_tokens(Token *tokens);
+#endif
 
 #endif
 
