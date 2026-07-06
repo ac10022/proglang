@@ -434,11 +434,9 @@ Token* L_Tokenize(FileInfo* source) {
 				new_tok->lexeme = malloc(identifier_len + 1);
 				memcpy(new_tok->lexeme, pointer, identifier_len);
 				new_tok->lexeme[identifier_len] = '\0';
-				pointer += identifier_len;
 			}
 
             cur = cur->next = new_tok;
-
             pointer += identifier_len;
             continue;
         }
