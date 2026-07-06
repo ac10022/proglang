@@ -21,6 +21,7 @@ ASTNode *parse_variable_assignment(Token **token) {
 }
 
 ASTNode *parse_variable_declaration(Token **token) {
+	printf("Parsing variable declaration\n");
     Type type_specifier = (*token)->typeinfo->type; // i32
 
     *token = (*token)->next; // must be TOKEN_SYMBOL_IDENTIFIER
@@ -66,6 +67,10 @@ ASTNode *parse_variable_declaration(Token **token) {
 }
 
 ASTNode *parse_expression(Token **token) { 
+	printf("parsing experssion\n");
+	while ((*token)->punc_type != PUNC_SEMICOLON) {
+		(*token) = (*token)->next;
+	}
 	return NULL;
 }
 
@@ -74,12 +79,15 @@ ASTNode *parse_function(Token **token) {
 }
 
 ASTNode *parse_statement(Token **token) { 
+	printf("parsing statement\n");
+	printf("%s\n", token_type_to_str((*token)));
 	switch ((*token)->token_type) {
 		case TOKEN_KEYWORD_FUNCTION:
 			parse_function(token);
 			break;
 		case TOKEN_PRIMITIVE_TYPE_SPECIFIER:
-			parse_variable_assignment(token);
+			printf("hit?\n");
+			parse_variable_declaration(token);
 			break;
 		case TOKEN_KEYWORD_IF:
 			parse_if_statement(token);

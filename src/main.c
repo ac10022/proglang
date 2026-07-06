@@ -10,8 +10,8 @@ int main(int argc, char *argv[]) {
 	Token *tokens = L_TokenizeFile(file_path);
 
 #ifdef DEBUG
-	print_tokens(tokens);
+	// print_tokens(tokens);
 #endif
 
-	// ASTNode *ast = generate_ast(tokens);
+	ASTNode *ast = generate_ast(tokens);
 }
