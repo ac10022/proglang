@@ -95,6 +95,11 @@ Token* L_NewToken(
     tok->source = source;
     tok->line_number = line_number;
 
+    tok->punc_type = PUNC_INVALID;
+    tok->int_val = (uint64_t)0;
+    tok->float_val = (long double)0;
+    tok->str_val = NULL;
+
     return tok;
 }
 

@@ -28,11 +28,15 @@
         STOP_COMPILATION(); \
     } while (0)
 
+#define ERR_SYNTAX(tok_deref, expected) ERR_GENERAL("Syntax error on line %lu; expected "expected", got '%.*s'.", (tok_deref)->line_number, TOK_STR_VAL(tok_deref)); 
+
 #define WARN_GENERAL(fmt, ...) fprintf(stderr, "WARNING:\t" fmt "\n", ##__VA_ARGS__)
 
 #define STR_STARTS_WITH(str, start) (strncmp(str, start, strlen(start)) == 0)
 
 #define CHR_IS_NEWLINE(chr) ((chr) == '\n' || (chr) == '\r')
+
+#define TOK_STR_VAL(tok) (int)((tok)->length), ((tok)->location)
 
 #define TODO(msg) assert(0 && (msg))
 
