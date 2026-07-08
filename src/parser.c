@@ -127,6 +127,7 @@ ASTNode *parse_for_statement(Token **token) {
 // Comparison	                        <, >, <=, >=	        age >= 18
 // Term (Additive)	                    +, -	                income - tax
 // Factor (Multiplicative)	            *, /, %	                hours * wage
+// Exponentiation						**						2 ** 5
 // Unary / Prefix	                    !, ++, --	            !is_active, count--
 // Postfix / Call	                    (), [], ., ->	        matrix[i][j]
 // Identifiers, Literals, Grouping	                            x, 42, "hello", (a + b)
@@ -139,7 +140,7 @@ ASTNode *parse_expression(Token **token) {
 	// 	(*token) = (*token)->next;
 	// }
 	// return NULL;
-	parse_variable_assignment(token);
+	return parse_variable_assignment(token);
 }
 
 ASTNode* new_node_binary(NodeType type, ASTNode* l_value, ASTNode* r_value) {
@@ -151,7 +152,22 @@ ASTNode* new_node_binary(NodeType type, ASTNode* l_value, ASTNode* r_value) {
 }
 
 ASTNode *parse_variable_assignment(Token **token) {
-	return parse_logical_or(token);
+	ASTNode* left = parse_logical_or(token);
+
+	if 	(	(*token)->token_type != TOKEN_EOF
+		&&  (*token)->token_type == TOKEN_PUNCTUATOR
+		&&  (*token)->punc_type  == PUNC_ASSIGNMENT   ) {
+		*token = (*token)->next;
+
+		// here instead we do recursive call because assignment links right to left 
+		// i.e. a = b = c   <====> a = (b = c)
+		ASTNode* right = parse_variable_assignment(token);
+		return new_node_binary(NODE_ASSIGN, left, right);
+	}
+
+	// TODO: need to do +=, -= etc
+
+	return left;
 }
 
 // ||
@@ -198,19 +214,106 @@ ASTNode* parse_logical_and(Token** token) {
 
 // == or !=
 ASTNode* parse_equality(Token** token) {
-	return parse_comparison(token);
+	ASTNode* left = parse_comparison(token);
+
+	while (  (*token)->token_type != TOKEN_EOF
+		  && (*token)->token_type == TOKEN_PUNCTUATOR
+		  && ((*token)->punc_type == PUNC_INEQAULITY 
+		  ||  (*token)->punc_type == PUNC_EQUALITY    )) {
+		Punctuator type = (*token)->punc_type;
+		*token = (*token)->next;
+
+		ASTNode* right = parse_comparison(token);
+		left = (type == PUNC_EQUALITY) ? new_node_binary(NODE_EQ, left, right) 
+									   : new_node_binary(NODE_NE, left, right);
+	}
+
+	return left;
 }
 
+// <, >, <=, >=
 ASTNode* parse_comparison(Token** token) {
-	return parse_term(token);
+	ASTNode* left = parse_term(token);
+
+	while (  (*token)->token_type != TOKEN_EOF
+		  && (*token)->token_type == TOKEN_PUNCTUATOR
+		  && ((*token)->punc_type == PUNC_LESSTHAN 
+		  ||  (*token)->punc_type == PUNC_GREATER    
+		  ||  (*token)->punc_type == PUNC_GEQ
+		  ||  (*token)->punc_type == PUNC_LEQ         )) {
+		Punctuator type = (*token)->punc_type;
+		*token = (*token)->next;
+
+		ASTNode* right = parse_term(token);
+		
+		switch (type) {
+			case PUNC_LESSTHAN: left = new_node_binary(NODE_LT, left, right); break;
+			case PUNC_GREATER:  left = new_node_binary(NODE_GT, left, right); break;
+			case PUNC_GEQ: 		left = new_node_binary(NODE_GE, left, right); break;
+			case PUNC_LEQ: 		left = new_node_binary(NODE_LE, left, right); break;
+		}
+	}
+
+	return left;
 }
 
+// +, -
 ASTNode* parse_term(Token** token) {
-	return parse_factor(token);
+	ASTNode* left = parse_factor(token);
+
+	while (  (*token)->token_type != TOKEN_EOF
+		  && (*token)->token_type == TOKEN_PUNCTUATOR
+		  && ((*token)->punc_type == PUNC_ADDITION 
+		  ||  (*token)->punc_type == PUNC_SUBTRACTION )) {
+		Punctuator type = (*token)->punc_type;
+		*token = (*token)->next;
+
+		ASTNode* right = parse_factor(token);
+		left = (type == PUNC_ADDITION) ? new_node_binary(NODE_ADD, left, right) 
+									   : new_node_binary(NODE_SUB, left, right);
+	}
+
+	return left;
 }
 
+// *, /, %
 ASTNode* parse_factor(Token** token) {
-	return parse_unary(token);
+	ASTNode* left = parse_exponentiation(token);
+
+	while (  (*token)->token_type != TOKEN_EOF
+		  && (*token)->token_type == TOKEN_PUNCTUATOR
+		  && ((*token)->punc_type == PUNC_MULTIPLY 
+		  ||  (*token)->punc_type == PUNC_DIVIDE    
+		  ||  (*token)->punc_type == PUNC_MOD         )) {
+		Punctuator type = (*token)->punc_type;
+		*token = (*token)->next;
+
+		ASTNode* right = parse_exponentiation(token);
+		
+		switch (type) {
+			case PUNC_MULTIPLY: left = new_node_binary(NODE_MUL, left, right); break;
+			case PUNC_DIVIDE:  	left = new_node_binary(NODE_DIV, left, right); break;
+			case PUNC_MOD: 		left = new_node_binary(NODE_MOD, left, right); break;
+		}
+	}
+
+	return left;
+}
+
+// ** (this is right to left associative)
+ASTNode* parse_exponentiation(Token** token) {
+	ASTNode* left = parse_unary(token);
+
+	if 	(	(*token)->token_type != TOKEN_EOF
+		&&  (*token)->token_type == TOKEN_PUNCTUATOR
+		&&  (*token)->punc_type  == PUNC_POW   		  ) {
+		*token = (*token)->next;
+
+		ASTNode* right = parse_exponentiation(token);
+		return new_node_binary(NODE_EXP, left, right);
+	}
+
+	return left;
 }
 
 ASTNode* parse_unary(Token** token) {
@@ -223,4 +326,5 @@ ASTNode* parse_postfix(Token** token) {
 
 ASTNode* parse_else(Token** token) {
 	// belongs to Identifiers, Literals, Grouping
+	return NULL;
 }

@@ -9,6 +9,7 @@ typedef enum {
     NODE_SUB,       // -
     NODE_MUL,       // *
     NODE_DIV,       // /
+    NODE_EXP,       // **
     NODE_NEG,       // unary -
     NODE_MOD,       // %
     NODE_BITAND,    // &
@@ -20,6 +21,8 @@ typedef enum {
     NODE_NE,        // !=
     NODE_LT,        // <
     NODE_LE,        // <=
+    NODE_GT,        // >
+    NODE_GE,        // >=
     NODE_ASSIGN,    // =
     NODE_COND,      // ?:
     NODE_COMMA,     // ,
