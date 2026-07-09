@@ -481,6 +481,7 @@ ASTNode* parse_else(Token** token) {
 //				     ^^^^^^ <- this function will be triggered here
 ASTNode* parse_function_call(Token** token) {
 	// helper for the postfix part
+	TODO("parse function calls");
 	return NULL;
 }
 
