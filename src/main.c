@@ -14,4 +14,9 @@ int main(int argc, char *argv[]) {
 #endif
 
 	ASTNode *ast = generate_ast(tokens);
+
+#ifdef DEBUG
+	trace(ast, 0);
+#endif
+
 }

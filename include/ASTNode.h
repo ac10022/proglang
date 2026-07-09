@@ -6,7 +6,9 @@
 typedef enum {
     NODE_NULL_EXPR, // Do nothing
     NODE_ADD,       // +
+    NODE_INCREMENT, // ++
     NODE_SUB,       // -
+    NODE_DECREMENT, // --
     NODE_MUL,       // *
     NODE_DIV,       // /
     NODE_EXP,       // **
@@ -41,6 +43,7 @@ typedef enum {
     NODE_CASE,      // "case"
 
     NODE_BLOCK,     // { ... }
+    NODE_INDEX,     // /* array */[ ... ]
 
     NODE_EXPR_STMT, // Expression statement
     NODE_VARIABLE,  // { variable_type, variable_name }
@@ -48,6 +51,10 @@ typedef enum {
     NODE_FUNCTION_DECLARATION,
 	NODE_FUNCTION, // { function_name, function_arguments, function_return_type (someday) } 
 	NODE_VARAIBLE_DECLARATION,
+
+    NODE_LITERAL_INT,
+    NODE_LITERAL_FLOAT,
+    NODE_LITERAL_STRING,
 
 	NODE_FUNCTION_CALL
 

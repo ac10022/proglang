@@ -10,9 +10,10 @@ ASTNode *generate_ast(Token *head) {
 
 	ASTNode *root;
 
+	// TODO: they all need to stem from a program start node or something
 	while ( (*current)->token_type != TOKEN_EOF ) {
 		printf("%d\n", (*current)->token_type);
-		parse_statement(current);
+		root = parse_statement(current);
 	}
 	printf("EOF\n");
 
@@ -148,6 +149,23 @@ ASTNode* new_node_binary(NodeType type, ASTNode* l_value, ASTNode* r_value) {
 	new_node->l_value = l_value;
 	new_node->r_value = r_value;
 	new_node->node_type = type;
+	return new_node;
+}
+
+ASTNode* new_node_unary(NodeType type, ASTNode* unary_val) {
+	ASTNode* new_node = calloc(1, sizeof(ASTNode));
+	new_node->r_value = unary_val;
+	new_node->node_type = type;
+	new_node->l_value = NULL;
+	return new_node;
+}
+
+ASTNode* new_node_memidentifier(ASTNode* l_value, char* identifier) {
+	ASTNode* new_node = calloc(1, sizeof(ASTNode));
+	new_node->l_value = l_value;
+	new_node->node_type = NODE_MEMBER;
+	new_node->r_value = NULL;
+	new_node->symbol_identifier = identifier;
 	return new_node;
 }
 
@@ -316,15 +334,205 @@ ASTNode* parse_exponentiation(Token** token) {
 	return left;
 }
 
+// !, ++, --
 ASTNode* parse_unary(Token** token) {
+	if (	(*token)->token_type != TOKEN_EOF
+		&&  (*token)->token_type == TOKEN_PUNCTUATOR  ) {
+		Punctuator type = (*token)->punc_type;
+
+		if (	type == PUNC_LOGICAL_NOT
+			|| 	type == PUNC_AMPERSAND
+			||  type == PUNC_BITWISE_NOT 
+			|| 	type == PUNC_SUBTRACTION
+			|| 	type == PUNC_MULTIPLY
+			||  type == PUNC_INCREMENT
+			|| 	type == PUNC_DECREMENT		) {
+			*token = (*token)->next;
+
+			ASTNode* operand = parse_unary(token); // in case we get like !!true to
+			
+			switch (type) {
+				case PUNC_LOGICAL_NOT: 	return new_node_unary(NODE_NOT, operand);
+				case PUNC_AMPERSAND: 	return new_node_unary(NODE_ADDR, operand);
+				case PUNC_BITWISE_NOT: 	return new_node_unary(NODE_BITNOT, operand);
+				case PUNC_SUBTRACTION: 	return new_node_unary(NODE_SUB, operand);
+				case PUNC_MULTIPLY: 	return new_node_unary(NODE_DEREF, operand);
+				case PUNC_INCREMENT: 	return new_node_unary(NODE_INCREMENT, operand);
+				case PUNC_DECREMENT: 	return new_node_unary(NODE_DECREMENT, operand);
+			}
+		}
+	}
+	
 	return parse_postfix(token);
 }
 
+// (), [], ., ->
 ASTNode* parse_postfix(Token** token) {
-	return parse_else(token);
+	ASTNode* left = parse_else(token);
+
+	while (  (*token)->token_type != TOKEN_EOF
+		  && (*token)->token_type == TOKEN_PUNCTUATOR	) {
+		Punctuator type = (*token)->punc_type;
+		bool still_to_parse = true;
+		
+		switch (type) {
+			case PUNC_DOT:
+			case PUNC_ARROW: {
+				*token = (*token)->next; // consume arrow or dot
+
+				if ((*token)->token_type != TOKEN_SYMBOL_IDENTIFIER) {
+					ERR_SYNTAX(*token, /* expected a */ "member identifier");
+				}
+
+				left = new_node_memidentifier(left, (*token)->lexeme);
+				*token = (*token)->next; // then consume member identifier
+				break;
+			}
+
+			case PUNC_OPEN_SQUARE: {
+				*token = (*token)->next; // consume open square
+				ASTNode* right = parse_expression(token);
+
+				if (	(*token)->token_type != TOKEN_PUNCTUATOR
+					|| 	(*token)->punc_type != PUNC_CLOSE_SQUARE	) {
+					ERR_SYNTAX(*token, /* expected a */ "closing square bracket ']'");
+				}
+
+				left = new_node_binary(NODE_INDEX, left, right);
+				*token = (*token)->next; // consume close square
+				break;
+			}
+
+			case PUNC_OPEN_PAREN:
+				// TODO: parse function call this is gonan be a pain in the ass
+				parse_function_call(token);
+				/* this is DEBUG remove it */ while ((*token)->token_type != TOKEN_PUNCTUATOR || (*token)->punc_type != PUNC_CLOSE_PAREN) *token = (*token)->next;
+				*token = (*token)->next; // skip close paren
+				break;
+			
+			default: 
+				still_to_parse = false; 
+				break;
+		}
+
+		if (!still_to_parse) break;
+	}
+
+	return left;
 }
 
+// Identifiers, Literals, Grouping
 ASTNode* parse_else(Token** token) {
-	// belongs to Identifiers, Literals, Grouping
+	switch ((*token)->token_type) {
+		case TOKEN_PUNCTUATOR: {
+			if ((*token)->punc_type != PUNC_OPEN_PAREN) break; // i might be forgetting something but i think this is the only remaining punctuator case
+			*token = (*token)->next;
+			ASTNode* subexpr = parse_expression(token);
+
+			if (	(*token)->token_type != TOKEN_PUNCTUATOR
+				||	(*token)->punc_type != PUNC_CLOSE_PAREN		) {
+				ERR_SYNTAX(*token, /* expected a */ "closed expression, closed by ')'");
+			}
+			
+			*token = (*token)->next; // consume close paren
+			return subexpr;
+		}
+
+		case TOKEN_STRING_LITERAL: {
+            ASTNode* str_node = calloc(1, sizeof(ASTNode));
+            str_node->node_type = NODE_LITERAL_STRING;
+            str_node->token = *token;
+            
+            *token = (*token)->next;
+            return str_node;
+        }
+		
+		case TOKEN_SYMBOL_IDENTIFIER: { 	/* this is gonna name of a variable, like 'x'*/
+            ASTNode* var_node = calloc(1, sizeof(ASTNode));
+            var_node->node_type = NODE_VARIABLE; // 
+            var_node->symbol_identifier = (*token)->lexeme;
+            var_node->token = *token;
+            
+            *token = (*token)->next;
+            return var_node;
+        }
+
+		case TOKEN_INT_LITERAL:
+		case TOKEN_FLOAT_LITERAL: {
+			ASTNode* val = calloc(1, sizeof(ASTNode));
+			val->node_type = (*token)->token_type == TOKEN_INT_LITERAL ? NODE_LITERAL_INT : NODE_LITERAL_FLOAT;
+
+			val->token = *token; // if you want to get the actual literal value you can just do val->token->float_val or something
+			*token = (*token)->next;
+			return val;
+		}
+
+		default: break;
+	}
+	
+	ERR_SYNTAX(*token, /* expected a */ "valid expression"); // i dont know what better error message to put here, if you get here somehow you really fuck up
 	return NULL;
 }
+
+// heirarchy ends here
+
+// this is not function definition, rather its just for calling them
+// i.e. i32 res = add(1, 2);
+//				     ^^^^^^ <- this function will be triggered here
+ASTNode* parse_function_call(Token** token) {
+	// helper for the postfix part
+	return NULL;
+}
+
+#ifdef DEBUG 
+
+const char* node_to_str(NodeType type) {
+    switch (type) {
+        case NODE_VARAIBLE_DECLARATION: return "VARIABLE_DECLARATION";
+        case NODE_VARIABLE:             return "VARIABLE";
+        case NODE_LITERAL_INT:          return "LITERAL_INT";
+        case NODE_LITERAL_FLOAT:        return "LITERAL_FLOAT";
+        case NODE_LITERAL_STRING:       return "LITERAL_STRING";
+        case NODE_ASSIGN:               return "ASSIGN (=)";
+        case NODE_ADD:                  return "ADD (+)";
+        case NODE_SUB:                  return "SUB (-)";
+        case NODE_MUL:                  return "MUL (*)";
+        case NODE_DIV:                  return "DIV (/)";
+        case NODE_MOD:                  return "MOD (%)";
+        case NODE_EXP:                  return "EXP (**)";
+        case NODE_LOGOR:                return "LOGICAL_OR (||)";
+        case NODE_LOGAND:               return "LOGICAL_AND (&&)";
+        case NODE_EQ:                   return "EQUAL (==)";
+        case NODE_NE:                   return "NOT_EQUAL (!=)";
+        case NODE_LT:                   return "LESS_THAN (<)";
+        case NODE_GT:                   return "GREATER_EQUAL (>)";
+        case NODE_LE:                   return "LESS_EQUAL (<=)";
+        case NODE_GE:                   return "GREATER_EQUAL (>=)";
+        case NODE_NOT:                  return "UNARY_NOT (!)";
+        case NODE_ADDR:                 return "ADDRESS_OF (&)";
+        case NODE_BITNOT:               return "BITWISE_NOT (~)";
+        case NODE_INCREMENT:            return "INCREMENT (++)";
+        case NODE_DECREMENT:            return "DECREMENT (--)";
+        case NODE_DEREF:                return "DEREFERENCE (*)";
+        case NODE_INDEX:                return "ARRAY_INDEX []";
+        case NODE_MEMBER:               return "STRUCT_MEMBER (. or ->)";
+        case NODE_FUNCTION_CALL:        return "FUNCTION_CALL ()";
+        default:                        return "UNKNOWN_NODE";
+    }
+}
+
+void trace(ASTNode* head, size_t depth) {
+	for (size_t i = 0; i < depth; i++) printf("  ");
+	printf("%s", node_to_str(head->node_type));
+
+	if ((head->node_type == NODE_VARIABLE || head->node_type == NODE_MEMBER)) printf(" [\"%s\"]", head->symbol_identifier);
+	if (head->node_type == NODE_LITERAL_INT) printf(" [%lu]", head->token->int_val);
+	if (head->node_type == NODE_LITERAL_FLOAT) printf(" [%Lf]", head->token->float_val);
+	if (head->node_type == NODE_LITERAL_STRING) printf(" [\"%s\"]", head->token->str_val);
+	printf("\n");
+
+	if (head->l_value != NULL) trace(head->l_value, depth + 1);
+	if (head->r_value != NULL) trace(head->r_value, depth + 1);
+}
+
+#endif
