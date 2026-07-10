@@ -4,7 +4,7 @@
 #include "lexer.h"
 
 typedef enum {
-    NODE_NULL_EXPR, // Do nothing
+    NODE_NULL_EXPR, // Do nothing (luca: im assuming this is for literal NULL values?)
     NODE_ADD,       // +
     NODE_INCREMENT, // ++
     NODE_SUB,       // -
@@ -68,9 +68,8 @@ typedef struct ASTNode {
 
 	char *symbol_identifier; // function or variable name
 
-	Type variable_type;
-
-	Type function_return_type;
+	TypeInfo *variable_typeinfo;
+	TypeInfo *function_return_type;
 
 	ASTNode *l_value; 	// x
 	ASTNode *r_value;	// 32

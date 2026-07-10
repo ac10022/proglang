@@ -29,7 +29,7 @@ ASTNode *parse_factor(Token **token);
 ASTNode *parse_exponentiation(Token **token);
 ASTNode *parse_unary(Token **token);
 ASTNode *parse_postfix(Token **token);
-ASTNode *parse_function_call(Token **token);
+ASTNode *parse_function_call(Token **token, ASTNode **rest);
 ASTNode *parse_else(Token **token);
 
 bool is_token_type(Token *token, TokenType type);

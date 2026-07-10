@@ -24,7 +24,7 @@ ASTNode *parse_variable_declaration(Token **token) {
 	printf("Parsing variable declaration\n");
 	assert((*token)->typeinfo != NULL); // if this calls its probably because its a type we havent provided support in the lexer yet
 
-    Type type_specifier = (*token)->typeinfo->type; // i32
+    TypeInfo* typeinfo = (*token)->typeinfo; // i32
 
     *token = (*token)->next; // must be TOKEN_SYMBOL_IDENTIFIER
 	if ((*token)->token_type != TOKEN_SYMBOL_IDENTIFIER) {
@@ -37,7 +37,7 @@ ASTNode *parse_variable_declaration(Token **token) {
     ASTNode *variable_node = malloc(sizeof(ASTNode));
     variable_node->node_type = NODE_VARIABLE; // contains variable name
     variable_node->symbol_identifier = (*token)->lexeme;
-	variable_node->variable_type = type_specifier; // this was causing segfault earlier, its because we've advanced the token, but we store the typeinfo before anyway so we just use this
+	variable_node->variable_typeinfo = typeinfo; // this was causing segfault earlier, its because we've advanced the token, but we store the typeinfo before anyway so we just use this
 
 	declaration_node->l_value = variable_node;
 
@@ -136,11 +136,6 @@ ASTNode *parse_for_statement(Token **token) {
 // i was looking up shunting yard, but apparently for an AST the easiest way to parse expressions is descent parsing
 
 ASTNode *parse_expression(Token **token) { 
-	printf("parsing experssion\n");
-	// while ((*token)->punc_type != PUNC_SEMICOLON) {
-	// 	(*token) = (*token)->next;
-	// }
-	// return NULL;
 	return parse_variable_assignment(token);
 }
 
@@ -404,10 +399,7 @@ ASTNode* parse_postfix(Token** token) {
 			}
 
 			case PUNC_OPEN_PAREN:
-				// TODO: parse function call this is gonan be a pain in the ass
-				parse_function_call(token);
-				/* this is DEBUG remove it */ while ((*token)->token_type != TOKEN_PUNCTUATOR || (*token)->punc_type != PUNC_CLOSE_PAREN) *token = (*token)->next;
-				*token = (*token)->next; // skip close paren
+				left = parse_function_call(token, &left);
 				break;
 			
 			default: 
@@ -449,7 +441,15 @@ ASTNode* parse_else(Token** token) {
 		
 		case TOKEN_SYMBOL_IDENTIFIER: { 	/* this is gonna name of a variable, like 'x'*/
             ASTNode* var_node = calloc(1, sizeof(ASTNode));
-            var_node->node_type = NODE_VARIABLE; // 
+			NodeType type = NODE_VARIABLE;
+
+			Token* peek = (*token)->next;
+			if (	peek->token_type == TOKEN_PUNCTUATOR 
+				&& 	peek->punc_type == PUNC_OPEN_PAREN		) {
+				type = NODE_FUNCTION; // i dont know if this is the right node type to use but for now it works, we probably need a lookup table for defined functions and then we can use that to populate this node's info here
+			}
+
+            var_node->node_type = type;
             var_node->symbol_identifier = (*token)->lexeme;
             var_node->token = *token;
             
@@ -467,6 +467,13 @@ ASTNode* parse_else(Token** token) {
 			return val;
 		}
 
+		case TOKEN_NULL: {
+			ASTNode* null_val = calloc(1, sizeof(ASTNode));
+			null_val->node_type = NODE_NULL_EXPR;
+			*token = (*token)->next;
+			return null_val;
+		}
+
 		default: break;
 	}
 	
@@ -479,10 +486,46 @@ ASTNode* parse_else(Token** token) {
 // this is not function definition, rather its just for calling them
 // i.e. i32 res = add(1, 2);
 //				     ^^^^^^ <- this function will be triggered here
-ASTNode* parse_function_call(Token** token) {
-	// helper for the postfix part
-	TODO("parse function calls");
-	return NULL;
+ASTNode* parse_function_call(Token** token, ASTNode** rest) {
+	assert(		(*token)->token_type == TOKEN_PUNCTUATOR 
+			&& 	(*token)->punc_type == PUNC_OPEN_PAREN		);
+
+	*token = (*token)->next; // consume open bracket
+	ASTNode* func_call = calloc(1, sizeof(ASTNode));
+	func_call->l_value = *rest;
+	func_call->node_type = NODE_FUNCTION_CALL;
+
+	// linked list of arguments
+	ASTNode* args = NULL;
+	if (	(*token)->token_type != TOKEN_PUNCTUATOR 	/* stop here for no args */
+		|| 	(*token)->punc_type != PUNC_CLOSE_PAREN		) {
+		
+		for (bool more_args = true; more_args;) {
+			ASTNode* cur_arg = parse_expression(token);
+		
+			if (args == NULL) args = cur_arg;
+			else {
+				// put at end of linked list
+				ASTNode* temp = args;
+				for (; temp->next != NULL; temp = temp->next);
+				temp->next = cur_arg;
+			}
+
+			// continue if there is a comma (more arguments)
+			more_args = 	(*token)->token_type == TOKEN_PUNCTUATOR 
+						&& 	(*token)->punc_type == PUNC_COMMA;
+			if (more_args) *token = (*token)->next;
+		}
+	}
+
+	if (	(*token)->token_type != TOKEN_PUNCTUATOR 
+		|| 	(*token)->punc_type != PUNC_CLOSE_PAREN		) {
+		ERR_SYNTAX(*token, /* expected a */ "')' to close function arguments");
+	}
+
+	*token = (*token)->next; // consume close paren
+	func_call->body = args;
+	return func_call;
 }
 
 #ifdef DEBUG 
@@ -517,7 +560,9 @@ const char* node_to_str(NodeType type) {
         case NODE_DEREF:                return "DEREFERENCE (*)";
         case NODE_INDEX:                return "ARRAY_INDEX []";
         case NODE_MEMBER:               return "STRUCT_MEMBER (. or ->)";
+		case NODE_FUNCTION:				return "FUNCTION";
         case NODE_FUNCTION_CALL:        return "FUNCTION_CALL ()";
+		case NODE_NULL_EXPR:			return "NULL";
         default:                        return "UNKNOWN_NODE";
     }
 }
@@ -526,7 +571,17 @@ void trace(ASTNode* head, size_t depth) {
 	for (size_t i = 0; i < depth; i++) printf("  ");
 	printf("%s", node_to_str(head->node_type));
 
-	if ((head->node_type == NODE_VARIABLE || head->node_type == NODE_MEMBER)) printf(" [\"%s\"]", head->symbol_identifier);
+	if (	head->node_type == NODE_VARIABLE 
+		|| 	head->node_type == NODE_MEMBER
+		|| 	head->node_type == NODE_FUNCTION	) 
+		printf(" [\"%s\"]", head->symbol_identifier);
+
+	if (head->node_type == NODE_VARIABLE) {
+		printf(" [type=%s]", type_to_str(head->variable_typeinfo->type, head->variable_typeinfo->is_unsigned));
+		printf(" [pdepth=%hu]", head->variable_typeinfo->pointer_depth);
+		if (head->variable_typeinfo->pointer_depth > 0) printf(" [%s]", head->variable_typeinfo->is_optional ? "nullable" : "nonnull");
+	}
+
 	if (head->node_type == NODE_LITERAL_INT) printf(" [%lu]", head->token->int_val);
 	if (head->node_type == NODE_LITERAL_FLOAT) printf(" [%Lf]", head->token->float_val);
 	if (head->node_type == NODE_LITERAL_STRING) printf(" [\"%s\"]", head->token->str_val);
@@ -534,6 +589,8 @@ void trace(ASTNode* head, size_t depth) {
 
 	if (head->l_value != NULL) trace(head->l_value, depth + 1);
 	if (head->r_value != NULL) trace(head->r_value, depth + 1);
+	if (head->body != NULL) trace(head->body, depth + 1);
+	if (head->next != NULL) trace(head->next, depth);
 }
 
 #endif
