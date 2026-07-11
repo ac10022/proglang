@@ -77,6 +77,10 @@ typedef struct ASTNode {
 	ASTNode *next;
 	ASTNode *body;
 
+    // if statements
+    ASTNode *condition;
+    ASTNode *on_condition_success;
+    ASTNode *on_condition_failure;
 } ASTNode;
 
 #endif

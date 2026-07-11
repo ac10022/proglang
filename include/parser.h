@@ -6,6 +6,7 @@
 
 ASTNode *generate_ast(Token *head);
 
+ASTNode *new_node_general(NodeType type, Token *tok);
 ASTNode *parse_variable_assignment(Token **token);
 ASTNode *parse_variable_declaration(Token **token);
 ASTNode *parse_statement	(Token **token);
@@ -13,10 +14,11 @@ ASTNode *parse_function 	(Token **token);
 ASTNode *parse_if_statement	(Token **token);
 ASTNode *parse_while_statement(Token **token);
 ASTNode *parse_for_statement(Token **token);
+ASTNode *parse_block(Token **token);
 
-ASTNode *new_node_binary(NodeType type, ASTNode *l_value, ASTNode *r_value);
-ASTNode *new_node_unary(NodeType type, ASTNode *unary_operand);
-ASTNode *new_node_memidentifier(ASTNode *l_value, char *identifier);
+ASTNode *new_node_binary(NodeType type, ASTNode *l_value, ASTNode *r_value, Token *tok);
+ASTNode *new_node_unary(NodeType type, ASTNode *unary_operand, Token *tok);
+ASTNode *new_node_memidentifier(ASTNode *l_value, char *identifier, Token *tok);
 
 ASTNode *parse_expression(Token **token);
 ASTNode *parse_variable_assignment(Token **token);

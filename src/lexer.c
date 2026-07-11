@@ -3,6 +3,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdint.h>
 #include <ctype.h>
 #include <string.h>
 
@@ -262,6 +263,7 @@ Token* L_ReadCharacterLiteral(FileInfo* source, char* pointer, uint64_t* line_nu
 TokenType L_GetIdentifierType(char* pointer, size_t len, Type* type, bool* is_unsigned) {
     if (len == 2 && strncmp(pointer, "fn", 2) == 0) return TOKEN_KEYWORD_FUNCTION;
     if (len == 2 && strncmp(pointer, "if", 2) == 0) return TOKEN_KEYWORD_IF;
+    if (len == 4 && strncmp(pointer, "else", 4) == 0) return TOKEN_KEYWORD_ELSE;
     if (len == 5 && strncmp(pointer, "while", 5) == 0) return TOKEN_KEYWORD_WHILE;
     if (len == 3 && strncmp(pointer, "for", 3) == 0) return TOKEN_KEYWORD_FOR;
     if (len == 6 && strncmp(pointer, "return", 6) == 0) return TOKEN_KEYWORD_RETURN;
@@ -602,6 +604,9 @@ const char *token_type_to_str(Token *current) {
 		case TOKEN_KEYWORD_IF: 
 			return "KEYWORD_IF";
 			break;
+        case TOKEN_KEYWORD_ELSE:
+            return "KEYWORD_ELSE";
+            break;
 		case TOKEN_KEYWORD_WHILE: 
 			return "KEYWORD_WHILE";   
 			break;
