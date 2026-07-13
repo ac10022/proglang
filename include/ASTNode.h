@@ -2,6 +2,7 @@
 #define ASTNODE_H
 
 #include "lexer.h"
+#include "parser.h"
 
 typedef enum {
     NODE_NULL_EXPR, // Do nothing (luca: im assuming this is for literal NULL values?)
@@ -66,7 +67,7 @@ typedef struct ASTNode {
 	NodeType node_type;
 	Token *token;
 
-	char *symbol_identifier; // function or variable name
+	Symbol *variable_symbol;
 
 	TypeInfo *variable_typeinfo;
 	TypeInfo *function_return_type;
