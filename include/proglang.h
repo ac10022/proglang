@@ -5,5 +5,6 @@
 #include <stdlib.h>
 #include "lexer.h"
 #include "parser.h"
+#include "optimiser.h"
 
 #endif

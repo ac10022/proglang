@@ -9,7 +9,8 @@ set(SOURCES
 	src/main.c
 )
 
-add_executable(proglang ${SOURCES})
+add_executable(proglang ${SOURCES}
+ src/optimiser.c)
 
 target_include_directories(proglang
     PRIVATE 

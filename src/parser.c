@@ -42,12 +42,19 @@ ASTNode *generate_ast(Token *head) {
 	ASTNode *root = NULL;
 
 	while (ctx.cur_token->token_type != TOKEN_EOF) {
-		printf("%d\n", ctx.cur_token->token_type);
-		root = parse_statement(&ctx);
+		// printf("%d\n", ctx.cur_token->token_type);
+		ASTNode* cur_statement = parse_statement(&ctx);
+		if (cur_statement == NULL) continue;
+
+		if (root == NULL) root = cur_statement;
+		else {
+			ASTNode *end = root;
+			for (; end->next != NULL; end = end->next);
+			end->next = cur_statement;
+		}
 	}
-
-	printf("EOF\n");
-
+	
+	// printf("EOF\n");
 	return root;
 }
 
