@@ -217,6 +217,7 @@ void print_ir_operand(IROperand op) {
 }
 
 void print_ir(IRInstruction* instruction) {
+    if (!instruction) return;
     if (instruction->op == IR_ASSIGN) {
         print_ir_operand(instruction->dest);
         printf(" = ");
