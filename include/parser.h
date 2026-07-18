@@ -53,6 +53,7 @@ ASTNode *parse_while_statement(ParserContext *ctx);
 ASTNode *parse_for_statement(ParserContext *ctx);
 ASTNode *parse_block(ParserContext *ctx);
 ASTNode *parse_return_statement(ParserContext *ctx);
+ASTNode *parse_expr_statement(ParserContext *ctx);
 
 ASTNode *new_node_binary(NodeType type, ASTNode *l_value, ASTNode *r_value, Token *tok);
 ASTNode *new_node_unary(NodeType type, ASTNode *unary_operand, Token *tok);
@@ -65,6 +66,7 @@ ASTNode *parse_logical_and(ParserContext *ctx);
 ASTNode *parse_equality(ParserContext *ctx);
 ASTNode *parse_comparison(ParserContext *ctx);
 ASTNode *parse_term(ParserContext *ctx);
+ASTNode *parse_bitwise_shift(ParserContext *ctx);
 ASTNode *parse_factor(ParserContext *ctx);
 ASTNode *parse_exponentiation(ParserContext *ctx);
 ASTNode *parse_unary(ParserContext *ctx);

@@ -16,9 +16,25 @@ typedef enum {
     IR_BITXOR,
     IR_LOGOR,
     IR_LOGAND,
+    IR_NEG,
+    IR_SHL,
+    IR_SHR,
+    IR_DEREF,
+    IR_ADDR,
+    IR_BITNOT,
     IR_ASSIGN,
+    IR_EQ,
+    IR_NE,
+    IR_LT,
+    IR_LE,
+    IR_GT,
+    IR_GE,
+    
     IR_CALL,
+    IR_LABEL,
     IR_JUMP,
+    IR_JUMP_IF_ZERO,
+    IR_JUMP_IF_NONZERO,
 } IROperation;
 
 typedef enum {
@@ -26,7 +42,8 @@ typedef enum {
     IROP_SYMBOL,
     IROP_TEMP,
     IROP_CONST_INT,
-    IROP_CONST_FLOAT
+    IROP_CONST_FLOAT,
+    IROP_LABEL,
 } IROperandType;
 
 typedef struct {
@@ -34,6 +51,7 @@ typedef struct {
     union {
         Symbol* sym;
         size_t temp_id;
+        size_t label_id;
         uint64_t int_val;
         long double float_val;
     };
@@ -72,6 +90,9 @@ typedef struct {
     IRInstruction *instructions;
     size_t temp_var_index;          // this is a counter for when we declare new IROP_TEMPs
                                     // so that we always have a unique identifer
+    
+    size_t label_index;             // this is a counter for when we declare new IROP_LABELs
+                                    // so that we always have a unique identifier for a label
 } OptimiserContext;
 
 IROperation node_to_irop(NodeType type);

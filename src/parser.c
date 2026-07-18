@@ -223,6 +223,7 @@ ASTNode *parse_statement(ParserContext *ctx) {
 	DEBUG_TOKEN_STR(ctx->cur_token);
 	switch (ctx->cur_token->token_type) {
 		case TOKEN_KEYWORD_FUNCTION:
+			// defining a function
 			return parse_function(ctx);
 		case TOKEN_PRIMITIVE_TYPE_SPECIFIER:
 			printf("hit?\n");
@@ -237,6 +238,9 @@ ASTNode *parse_statement(ParserContext *ctx) {
 			return parse_return_statement(ctx);
 		case TOKEN_PUNCTUATOR:
 			if (ctx->cur_token->punc_type == PUNC_OPEN_CURLY) return parse_block(ctx);
+		case TOKEN_SYMBOL_IDENTIFIER:
+			// calling a function, or assigning a variable
+			return parse_expr_statement(ctx);
 		default:
 			fprintf(stderr, "Syntax Error: Unknown statement token\n");
             exit(1);
@@ -325,6 +329,22 @@ ASTNode *parse_return_statement(ParserContext *ctx) {
 	return NULL;
 }
 
+ASTNode *parse_expr_statement(ParserContext *ctx) {
+	Token* ref = ctx->cur_token;
+	ASTNode* expr = parse_expression(ctx);
+
+	if (	ctx->cur_token->token_type != TOKEN_PUNCTUATOR
+		|| 	ctx->cur_token->punc_type != PUNC_SEMICOLON		){
+		// printf("%s %s", token_type_to_str(ctx->cur_token->token_type), punc_to_str(ctx->cur_token->punc_type));
+		ERR_SYNTAX(ctx->cur_token, /* expected a */ "';' semicolon to end expression statement");
+	}
+
+	advance_token(ctx);
+	ASTNode* statement = new_node_general(NODE_EXPR_STMT, ref);
+	statement->l_value = expr;
+	return statement;
+}
+
 // operator presedence (lowest to highest)
 
 // name                                 symbols                 examples
@@ -333,6 +353,7 @@ ASTNode *parse_return_statement(ParserContext *ctx) {
 // Logical AND	                        &&	                    a && b
 // Equality	                            ==, !=	                status == 200
 // Comparison	                        <, >, <=, >=	        age >= 18
+// Bitwise Shift						<<, >>					x << 2
 // Term (Additive)	                    +, -	                income - tax
 // Factor (Multiplicative)	            *, /, %	                hours * wage
 // Exponentiation						**						2 ** 5
@@ -473,7 +494,7 @@ ASTNode* parse_equality(ParserContext* ctx) {
 }
 
 ASTNode* parse_comparison(ParserContext* ctx) {
-	ASTNode* left = parse_term(ctx);
+	ASTNode* left = parse_bitwise_shift(ctx);
 
 	while (		ctx->cur_token->token_type != TOKEN_EOF
 		  && 	ctx->cur_token->token_type == TOKEN_PUNCTUATOR
@@ -485,7 +506,7 @@ ASTNode* parse_comparison(ParserContext* ctx) {
 		Punctuator type = ctx->cur_token->punc_type;
 		advance_token(ctx);
 
-		ASTNode* right = parse_term(ctx);
+		ASTNode* right = parse_bitwise_shift(ctx);
 		
 		switch (type) {
 			case PUNC_LESSTHAN: left = new_node_binary(NODE_LT, left, right, ref); break;
@@ -493,6 +514,25 @@ ASTNode* parse_comparison(ParserContext* ctx) {
 			case PUNC_GEQ: 		left = new_node_binary(NODE_GE, left, right, ref); break;
 			case PUNC_LEQ: 		left = new_node_binary(NODE_LE, left, right, ref); break;
 		}
+	}
+
+	return left;
+}
+
+ASTNode* parse_bitwise_shift(ParserContext* ctx) {
+	ASTNode* left = parse_term(ctx);
+
+	while (		ctx->cur_token->token_type != TOKEN_EOF
+		  && 	ctx->cur_token->token_type == TOKEN_PUNCTUATOR
+		  &&   (ctx->cur_token->punc_type == PUNC_LS
+		  || 	ctx->cur_token->punc_type == PUNC_RS			)) {
+		Token* ref = ctx->cur_token;
+		Punctuator type = ctx->cur_token->punc_type;
+		advance_token(ctx);
+
+		ASTNode* right = parse_term(ctx);
+		left = (type == PUNC_LS) 	? new_node_binary(NODE_SHL, left, right, ref)
+									: new_node_binary(NODE_SHR, left, right, ref);
 	}
 
 	return left;
@@ -567,9 +607,7 @@ ASTNode* parse_unary(ParserContext* ctx) {
 			|| 	type == PUNC_AMPERSAND 
 			|| 	type == PUNC_BITWISE_NOT
 			|| 	type == PUNC_SUBTRACTION 
-			|| 	type == PUNC_MULTIPLY 
-			|| 	type == PUNC_INCREMENT
-			|| 	type == PUNC_DECREMENT		) {
+			|| 	type == PUNC_MULTIPLY 		) {
 			Token* ref = ctx->cur_token;
 			advance_token(ctx);
 
@@ -581,8 +619,6 @@ ASTNode* parse_unary(ParserContext* ctx) {
 				case PUNC_BITWISE_NOT: 	return new_node_unary(NODE_BITNOT, operand, ref);
 				case PUNC_SUBTRACTION: 	return new_node_unary(NODE_SUB, operand, ref);
 				case PUNC_MULTIPLY: 	return new_node_unary(NODE_DEREF, operand, ref);
-				case PUNC_INCREMENT: 	return new_node_unary(NODE_INCREMENT, operand, ref);
-				case PUNC_DECREMENT: 	return new_node_unary(NODE_DECREMENT, operand, ref);
 			}
 		}
 	}
@@ -630,6 +666,14 @@ ASTNode* parse_postfix(ParserContext* ctx) {
 			case PUNC_OPEN_PAREN:
 				left = parse_function_call(ctx, &left);
 				break;
+
+			case PUNC_INCREMENT:
+			case PUNC_DECREMENT: {
+				advance_token(ctx);
+				left = (type == PUNC_INCREMENT) ? new_node_unary(NODE_INCREMENT, left, ref)
+												: new_node_unary(NODE_DECREMENT, left, ref);
+				break;
+			}
 			
 			default:
 				still_to_parse = false;
@@ -769,6 +813,8 @@ const char* node_to_str(NodeType type) {
         case NODE_DIV:                  return "DIV (/)";
         case NODE_MOD:                  return "MOD (%)";
         case NODE_EXP:                  return "EXP (**)";
+		case NODE_SHL:					return "SHL (<<)";
+		case NODE_SHR:					return "SHR (>>)";
         case NODE_LOGOR:                return "LOGICAL_OR (||)";
         case NODE_LOGAND:               return "LOGICAL_AND (&&)";
         case NODE_EQ:                   return "EQUAL (==)";
@@ -788,6 +834,7 @@ const char* node_to_str(NodeType type) {
 		case NODE_FUNCTION:				return "FUNCTION";
         case NODE_FUNCTION_CALL:        return "FUNCTION_CALL ()";
 		case NODE_NULL_EXPR:			return "NULL";
+		case NODE_EXPR_STMT:			return "EXPRESSION STMT";
         default:                        return "UNKNOWN_NODE";
     }
 }
