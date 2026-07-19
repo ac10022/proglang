@@ -60,6 +60,9 @@ typedef struct {
 #define IROPERAND_EMPTY         (IROperand){ .type = IROP_EMPTY }
 #define IROP_IS_EMPTY(irop)     ((irop).type == IROP_EMPTY)
 
+#define TRUE                    (IROperand){ .type = IROP_CONST_INT, .int_val = 1 }
+#define FALSE                   (IROperand){ .type = IROP_CONST_INT, .int_val = 0 }
+
 typedef struct IRInstruction IRInstruction;
 
 /*
@@ -100,6 +103,10 @@ void initialise_optim_context(OptimiserContext* ctx);
 void push_instruction(OptimiserContext* ctx, IRInstruction* instruction);
 void emit(OptimiserContext* ctx, IROperation op, IROperand d, IROperand src1, IROperand src2);
 IRInstruction* ast_to_ir(ASTNode* root);
+
+IROperand new_temp(OptimiserContext* ctx);
+IROperand new_label(OptimiserContext* ctx);
+
 void lower(OptimiserContext* ctx, ASTNode* node);
 IROperand lower_expr(OptimiserContext* ctx, ASTNode* node);
 

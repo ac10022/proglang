@@ -102,7 +102,7 @@ void lower(OptimiserContext* ctx, ASTNode* node) {
     if (!node) return;
 
     switch (node->node_type) {
-        case NODE_VARAIBLE_DECLARATION:
+        case NODE_VARAIBLE_DECLARATION: {
             // case with no initialiser (e.g., i32 x; )
             if (!node->r_value) break;
             
@@ -118,13 +118,101 @@ void lower(OptimiserContext* ctx, ASTNode* node) {
             }
 
             break;
-        
-        case NODE_IF:
-        case NODE_FOR:
+        }
+            
+        case NODE_IF: {
+            /*
+             *  if (condition) {
+             *      ...
+             *  } else {
+             *      ...
+             *  }
+             * 
+             * translating to
+             *
+             *  if condition nonzero:
+             *      goto success
+             *  
+             *  [COND FAIL STMTS]
+             *  goto end
+             * 
+             *  success:
+             *  [COND SUCCESS STMTS]
+             * 
+             *  end:
+             */
+
+            IROperand success = new_label(ctx);
+            IROperand end = new_label(ctx);
+            IROperand cond = lower_expr(ctx, node->condition);
+
+            emit(ctx, IR_JUMP_IF_NONZERO, IROPERAND_EMPTY, cond, success);  // if condition nonzero: goto success
+            lower(ctx, node->on_condition_failure);                         // [COND FAIL STMTS]
+            emit(ctx, IR_JUMP, IROPERAND_EMPTY, IROPERAND_EMPTY, end);      // goto end
+            emit(ctx, IR_LABEL, success, IROPERAND_EMPTY, IROPERAND_EMPTY); // success:
+            lower(ctx, node->on_condition_success);                         // [COND SUCCESS STMTS]
+            emit(ctx, IR_LABEL, end, IROPERAND_EMPTY, IROPERAND_EMPTY);     // end:
+            break;
+        }
+            
+        case NODE_BLOCK: {
+            // temp solution you probably gotta do something with scope
+            for (ASTNode* end = node->body; end != NULL; end = end->next) lower(ctx, end);
+            //TODO("lower block");
+            break;
+        }
+            
+        case NODE_FOR: {
+            /*
+             * for (init; cond; incr) {
+             *      ...
+             * }
+             * 
+             * translating to:
+             *
+             * [INIT]
+             * loop:
+             * if cond nonzero:     // stay in loop
+             *      goto continue
+             * 
+             * goto exit
+             * 
+             * continue:
+             *      [FOR STATEMENTS]
+             *      [INCR]
+             *      goto loop
+             * 
+             * exit:
+             */
+
+            IROperand loop = new_label(ctx);
+            IROperand cont = new_label(ctx);
+            IROperand exit = new_label(ctx);
+            IROperand cond = IROPERAND_EMPTY;
+            
+            lower(ctx, node->initial);                                      // [INIT]
+            emit(ctx, IR_LABEL, loop, IROPERAND_EMPTY, IROPERAND_EMPTY);    // loop:
+            
+            // infinite loop of form for (... ; ; ...) i.e. infinite loop or relying on break
+            if (node->condition == NULL) {
+                emit(ctx, IR_JUMP, IROPERAND_EMPTY, IROPERAND_EMPTY, cont);
+            }
+            else {
+                cond = lower_expr(ctx, node->condition);
+                emit(ctx, IR_JUMP_IF_NONZERO, IROPERAND_EMPTY, cond, cont); // if cond nonzero: goto continue
+            }
+            emit(ctx, IR_JUMP, IROPERAND_EMPTY, IROPERAND_EMPTY, exit);     // goto exit
+            emit(ctx, IR_LABEL, cont, IROPERAND_EMPTY, IROPERAND_EMPTY);    // continue:
+            lower(ctx, node->body);                                         // [FOR STATEMENTS]
+            lower(ctx, node->increment);                                    // [INCR]
+            emit(ctx, IR_JUMP, IROPERAND_EMPTY, IROPERAND_EMPTY, loop);     // goto loop
+            emit(ctx, IR_LABEL, exit, IROPERAND_EMPTY, IROPERAND_EMPTY);    // exit:
+            break;
+        }
+            
         case NODE_SWITCH:
         case NODE_RETURN:
-        case NODE_BLOCK:
-            TODO("lower if/for/switch/return/block statements");
+            TODO("lower for/switch/return statements");
 
         default:
             lower_expr(ctx, node);
@@ -243,25 +331,17 @@ IROperand lower_expr(OptimiserContext* ctx, ASTNode* node) {
 
         // !x <==> (x == 0) i.e. (x == false)
         case NODE_NOT:
-            IROperand rhs = (IROperand){
-                .type = IROP_CONST_INT,
-                .int_val = 0,
-            };
             IROperand lhs = lower_expr(ctx, node->r_value);
             IROperand temp = new_temp(ctx);
-            emit(ctx, IR_EQ, temp, lhs, rhs);
+            emit(ctx, IR_EQ, temp, lhs, FALSE);
             return temp;
-        
+
         // case (boolean)
         case NODE_LOGAND: {
             // assign a new variable (res) to 0 (false), we assume its false, because if either lhs or rhs is false, then the whole thing is false
             IROperand res = new_temp(ctx);
             IROperand label = new_label(ctx);
-            IROperand falsy = (IROperand){
-                .type = IROP_CONST_INT,
-                .int_val = 0,
-            };
-            emit(ctx, IR_ASSIGN, res, falsy, IROPERAND_EMPTY);
+            emit(ctx, IR_ASSIGN, res, FALSE, IROPERAND_EMPTY);
 
             IROperand lhs = lower_expr(ctx, node->l_value);
             IROperand rhs = lower_expr(ctx, node->r_value);
@@ -270,11 +350,7 @@ IROperand lower_expr(OptimiserContext* ctx, ASTNode* node) {
             emit(ctx, IR_JUMP_IF_ZERO, IROPERAND_EMPTY, lhs, label);
             emit(ctx, IR_JUMP_IF_ZERO, IROPERAND_EMPTY, rhs, label);
 
-            IROperand truthy = (IROperand){
-                .type = IROP_CONST_INT,
-                .int_val = 1,
-            };
-            emit(ctx, IR_ASSIGN, res, truthy, IROPERAND_EMPTY);
+            emit(ctx, IR_ASSIGN, res, TRUE, IROPERAND_EMPTY);
 
             emit(ctx, IR_LABEL, label, IROPERAND_EMPTY, IROPERAND_EMPTY);
             return res;
@@ -298,11 +374,7 @@ IROperand lower_expr(OptimiserContext* ctx, ASTNode* node) {
             // assign a new variable (res) to 1 (true), we assume its true, because if either lhs or rhs is true, then the whole thing is true
             IROperand res = new_temp(ctx);
             IROperand label = new_label(ctx);
-            IROperand truthy = (IROperand) {
-                .type = IROP_CONST_INT,
-                .int_val = 1,
-            };
-            emit(ctx, IR_ASSIGN, res, truthy, IROPERAND_EMPTY);
+            emit(ctx, IR_ASSIGN, res, TRUE, IROPERAND_EMPTY);
 
             IROperand lhs = lower_expr(ctx, node->l_value);
             IROperand rhs = lower_expr(ctx, node->r_value);
@@ -311,11 +383,7 @@ IROperand lower_expr(OptimiserContext* ctx, ASTNode* node) {
             emit(ctx, IR_JUMP_IF_NONZERO, IROPERAND_EMPTY, lhs, label);
             emit(ctx, IR_JUMP_IF_NONZERO, IROPERAND_EMPTY, rhs, label);
 
-            IROperand falsy = (IROperand){
-                .type = IROP_CONST_INT,
-                .int_val = 0,
-            };
-            emit(ctx, IR_ASSIGN, res, falsy, IROPERAND_EMPTY);
+            emit(ctx, IR_ASSIGN, res, FALSE, IROPERAND_EMPTY);
 
             emit(ctx, IR_LABEL, label, IROPERAND_EMPTY, IROPERAND_EMPTY);
             return res;
@@ -366,6 +434,12 @@ const char* irop_to_str(IROperation op) {
         case IR_DEREF:      return "*";
         case IR_ADDR:       return "&";
         case IR_BITNOT:     return "~";
+        case IR_LE:         return "<=";
+        case IR_LT:         return "<";
+        case IR_EQ:         return "==";
+        case IR_GT:         return ">";
+        case IR_GE:         return ">=";
+        case IR_NE:         return "!=";
         case IR_CALL:       return "CALL";
         case IR_JUMP:       return "JUMP";
         default:            return "UNKNOWN";
@@ -403,6 +477,9 @@ void print_ir(IRInstruction* instruction) {
         printf(" IF ");
         print_ir_operand(instruction->src1);
         printf(" NONZERO");
+    } else if (instruction->op == IR_JUMP) {
+        printf("JUMP TO ");
+        print_ir_operand(instruction->src2);
     } else if (instruction->op == IR_LABEL) {
         printf("\nLABEL "); print_ir_operand(instruction->dest); printf(":");
     } else {

@@ -333,11 +333,24 @@ ASTNode *parse_for_statement(ParserContext *ctx) {
 		for_stmt->initial = parse_expr_statement(ctx);
 	}
 
+	// for (; ...; ...) case, i.e. skips init
+	else if (	ctx->cur_token->token_type == TOKEN_PUNCTUATOR
+			&&	ctx->cur_token->punc_type == PUNC_SEMICOLON		) {
+		for_stmt->initial = NULL;
+		advance_token(ctx);
+	}
+
 	else ERR_SYNTAX(ctx->cur_token, /* expected a */ "primitive type specifier (newly defined variable) or a predefined symbol identifier");
 
 	// semicolon checked and consumed by either parse_expr_statement or parse_variable_declaration
 
-	for_stmt->condition = parse_expression(ctx);
+	// for (... ;; ...) case, i.e. skips condition, relying on break, or infinite loop
+	if (	ctx->cur_token->token_type == TOKEN_PUNCTUATOR 
+		&& 	ctx->cur_token->punc_type == PUNC_SEMICOLON		) {
+		for_stmt->condition = NULL;
+	} else {
+		for_stmt->condition = parse_expression(ctx);
+	}
 
 	if (	ctx->cur_token->token_type != TOKEN_PUNCTUATOR 
 		|| 	ctx->cur_token->punc_type != PUNC_SEMICOLON	) {
@@ -345,7 +358,13 @@ ASTNode *parse_for_statement(ParserContext *ctx) {
 	}
 	advance_token(ctx); // consume ;
 
-	for_stmt->increment = parse_expression(ctx);
+	// for (... ; ... ;) case, i.e. skips increment
+	if (	ctx->cur_token->token_type == TOKEN_PUNCTUATOR 
+		&& 	ctx->cur_token->punc_type == PUNC_CLOSE_PAREN	) {
+		for_stmt->increment = NULL;
+	} else {
+		for_stmt->increment = parse_expression(ctx);
+	}
 
 	if (	ctx->cur_token->token_type != TOKEN_PUNCTUATOR 
 		|| 	ctx->cur_token->punc_type != PUNC_CLOSE_PAREN	) {
@@ -942,12 +961,25 @@ void trace(ASTNode* head, size_t depth) {
 
 	if (head->node_type == NODE_FOR) {
 		printf(" [ \n");
+
 		for (size_t i = 0; i < depth; i++) printf("  ");
-		printf("* INIT:\n"); trace(head->initial, depth + 1);
+		if (head->initial) {
+			printf("* INIT:\n"); trace(head->initial, depth + 1);
+		}
+		else printf("* INIT: EMPTY\n");
+
 		for (size_t i = 0; i < depth; i++) printf("  ");
-		printf("* COND:\n"); trace(head->condition, depth + 1);
+		if (head->condition) {
+			printf("* COND:\n"); trace(head->condition, depth + 1);
+		}
+		else printf("* COND: EMPTY\n");
+
 		for (size_t i = 0; i < depth; i++) printf("  ");
-		printf("* INCR:\n"); trace(head->increment, depth + 1);
+		if (head->increment) {
+			printf("* INCR:\n"); trace(head->increment, depth + 1);
+		}
+		else printf("* INCR: EMPTY\n");
+		
 		for (size_t i = 0; i < depth; i++) printf("  ");
 		printf("]");
 	}
