@@ -43,6 +43,9 @@ void initalise_global_scope(ParserContext *ctx);
 
 ASTNode *generate_ast(Token *head);
 
+Scope *set_new_scope(ParserContext *ctx);
+Scope *exit_scope(ParserContext *ctx);
+
 ASTNode *new_node_general(NodeType type, Token *tok);
 ASTNode *parse_variable_assignment(ParserContext *ctx);
 ASTNode *parse_variable_declaration(ParserContext *ctx);

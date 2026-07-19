@@ -289,7 +289,14 @@ ASTNode *parse_if_statement(ParserContext *ctx) {
 	// printf("%s\n", token_type_to_str(ctx->cur_token));
 	if (ctx->cur_token->token_type == TOKEN_KEYWORD_ELSE) {
 		advance_token(ctx);
-		if_stmt->on_condition_failure = parse_block(ctx);
+
+		// else if
+		if (ctx->cur_token->token_type == TOKEN_KEYWORD_IF) {
+			if_stmt->on_condition_failure = parse_if_statement(ctx);
+		}
+
+		// just else
+		else if_stmt->on_condition_failure = parse_block(ctx);
 	}
 
 	return if_stmt;
@@ -301,8 +308,55 @@ ASTNode *parse_while_statement(ParserContext *ctx) {
 }
 
 ASTNode *parse_for_statement(ParserContext *ctx) {
-	TODO("parse for statement");
-	return NULL;
+	assert(ctx->cur_token->token_type == TOKEN_KEYWORD_FOR);
+	ASTNode* for_stmt = new_node_general(NODE_FOR, ctx->cur_token);
+	advance_token(ctx);
+
+	if (	ctx->cur_token->token_type != TOKEN_PUNCTUATOR 
+		|| 	ctx->cur_token->punc_type != PUNC_OPEN_PAREN	) {
+		ERR_SYNTAX(ctx->cur_token, /* expected a */ "open parenthesis '(' for for clause");
+	}
+	advance_token(ctx); // consume (
+
+	// init step
+	set_new_scope(ctx);
+
+	// general for (i32 i = 0; ...; ...) case or similar
+	// i.e. defining a variable in the init step of the for clause
+	if (ctx->cur_token->token_type == TOKEN_PRIMITIVE_TYPE_SPECIFIER) {
+		for_stmt->initial = parse_variable_declaration(ctx);
+	} 
+	
+	// for (i = 0; ...; ...) with predeclared i
+	// whatever the SYMBOL_IDENTIFIER is, it must be a previously defined variable
+	else if (ctx->cur_token->token_type == TOKEN_SYMBOL_IDENTIFIER) {
+		for_stmt->initial = parse_expr_statement(ctx);
+	}
+
+	else ERR_SYNTAX(ctx->cur_token, /* expected a */ "primitive type specifier (newly defined variable) or a predefined symbol identifier");
+
+	// semicolon checked and consumed by either parse_expr_statement or parse_variable_declaration
+
+	for_stmt->condition = parse_expression(ctx);
+
+	if (	ctx->cur_token->token_type != TOKEN_PUNCTUATOR 
+		|| 	ctx->cur_token->punc_type != PUNC_SEMICOLON	) {
+		ERR_SYNTAX(ctx->cur_token, /* expected a */ "semicolon ';' for increment step of for clause");
+	}
+	advance_token(ctx); // consume ;
+
+	for_stmt->increment = parse_expression(ctx);
+
+	if (	ctx->cur_token->token_type != TOKEN_PUNCTUATOR 
+		|| 	ctx->cur_token->punc_type != PUNC_CLOSE_PAREN	) {
+		ERR_SYNTAX(ctx->cur_token, /* expected a */ "closing parenthesis ')' for end of for clause");
+	}
+	advance_token(ctx); // consume )
+
+	for_stmt->body = parse_block(ctx);
+
+	exit_scope(ctx);
+	return for_stmt;
 }
 
 Scope *set_new_scope(ParserContext *ctx) {
@@ -320,12 +374,41 @@ Scope *exit_scope(ParserContext *ctx) {
 }
 
 ASTNode *parse_block(ParserContext *ctx) {
-	TODO("parse block");
-	return NULL;
+	if (	ctx->cur_token->token_type != TOKEN_PUNCTUATOR 
+		|| 	ctx->cur_token->punc_type != PUNC_OPEN_CURLY	) {
+		ERR_SYNTAX(ctx->cur_token, /* expected a */ "open curly '{' for block");
+	}
+
+	ASTNode* block = new_node_general(NODE_BLOCK, ctx->cur_token);
+	advance_token(ctx); // consume {
+	set_new_scope(ctx);
+
+	while (		ctx->cur_token->token_type != TOKEN_EOF
+			&&!(ctx->cur_token->token_type == TOKEN_PUNCTUATOR
+			&&	ctx->cur_token->punc_type == PUNC_CLOSE_CURLY	)) {
+		ASTNode* statement = parse_statement(ctx);
+		
+		// push statement onto end of block body linked list
+		if (block->body == NULL) block->body = statement;
+		else {
+			ASTNode* end = block->body;
+			for (; end->next != NULL; end = end->next);
+			end->next = statement;
+		}
+	}
+
+	if (	ctx->cur_token->token_type != TOKEN_PUNCTUATOR 
+		|| 	ctx->cur_token->punc_type != PUNC_CLOSE_CURLY	) {
+		ERR_SYNTAX(ctx->cur_token, /* expected a */ "close curly '{' for block");
+	}
+	advance_token(ctx); // consume }
+	
+	exit_scope(ctx);
+	return block;
 }
 
 ASTNode *parse_return_statement(ParserContext *ctx) {
-	TODO("parse return stmt");
+	TODO("parse return stmt, we need to do parse function first");
 	return NULL;
 }
 
@@ -835,7 +918,10 @@ const char* node_to_str(NodeType type) {
         case NODE_FUNCTION_CALL:        return "FUNCTION_CALL ()";
 		case NODE_NULL_EXPR:			return "NULL";
 		case NODE_EXPR_STMT:			return "EXPRESSION STMT";
-        default:                        return "UNKNOWN_NODE";
+		case NODE_FOR:					return "FOR";
+		case NODE_IF:					return "IF";
+		case NODE_BLOCK:				return "BLOCK";
+        default:                        printf("%d ", type); return "UNKNOWN_NODE";
     }
 }
 
@@ -854,6 +940,30 @@ void trace(ASTNode* head, size_t depth) {
 		printf(" [vari=%lu]", head->variable_symbol->variable_identifier);
 	}
 
+	if (head->node_type == NODE_FOR) {
+		printf(" [ \n");
+		for (size_t i = 0; i < depth; i++) printf("  ");
+		printf("* INIT:\n"); trace(head->initial, depth + 1);
+		for (size_t i = 0; i < depth; i++) printf("  ");
+		printf("* COND:\n"); trace(head->condition, depth + 1);
+		for (size_t i = 0; i < depth; i++) printf("  ");
+		printf("* INCR:\n"); trace(head->increment, depth + 1);
+		for (size_t i = 0; i < depth; i++) printf("  ");
+		printf("]");
+	}
+
+	if (head->node_type == NODE_IF) {
+		printf(" [ \n"); 
+		for (size_t i = 0; i < depth; i++) printf("  ");
+		printf("* COND:\n"); trace(head->condition, depth + 1); 
+		for (size_t i = 0; i < depth; i++) printf("  ");
+		printf("]\n");
+		for (size_t i = 0; i < depth; i++) printf("  ");
+		if (head->on_condition_success) printf("THEN\n"); trace(head->on_condition_success, depth + 1);
+		for (size_t i = 0; i < depth; i++) printf("  ");
+		if (head->on_condition_failure) printf("ELSE\n"); trace(head->on_condition_failure, depth + 1);
+	}
+
 	if (head->node_type == NODE_LITERAL_INT) printf(" [%lu]", head->token->int_val);
 	if (head->node_type == NODE_LITERAL_FLOAT) printf(" [%Lf]", head->token->float_val);
 	if (head->node_type == NODE_LITERAL_STRING) printf(" [\"%s\"]", head->token->str_val);
@@ -862,6 +972,14 @@ void trace(ASTNode* head, size_t depth) {
 	if (head->l_value != NULL) trace(head->l_value, depth + 1);
 	if (head->r_value != NULL) trace(head->r_value, depth + 1);
 	if (head->body != NULL) trace(head->body, depth + 1);
+	if (head->node_type == NODE_FOR) {
+		for (size_t i = 0; i < depth; i++) printf("  ");
+		printf("ENDFOR\n");
+	}
+	if (head->node_type == NODE_IF) {
+		for (size_t i = 0; i < depth; i++) printf("  ");
+		printf("ENDIF\n");
+	}
 	if (head->next != NULL) trace(head->next, depth);
 }
 

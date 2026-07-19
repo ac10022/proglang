@@ -82,6 +82,13 @@ typedef struct ASTNode {
     ASTNode *condition;
     ASTNode *on_condition_success;
     ASTNode *on_condition_failure;
+
+    // for statements
+    ASTNode *initial;
+    ASTNode *increment;
+
+    // for statements structed like this:
+    // for (initial; condition; increment) { ... }
 } ASTNode;
 
 #endif
