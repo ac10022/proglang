@@ -157,6 +157,7 @@ size_t L_TokensCount(Token *head);
 const char *punc_to_str(Punctuator punc);
 const char *type_to_str(Type type, bool is_unsigned);
 const char *token_type_to_str(Token *current);
+void print_token_info(Token* current);
 void print_tokens(Token *tokens);
 #endif
 

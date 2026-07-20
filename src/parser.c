@@ -166,7 +166,7 @@ Symbol *symbol_lookup(Scope *scope, char *sym_name) {
 	return NULL;
 }
 
-ASTNode *parse_variable_declaration(ParserContext *ctx) {
+ASTNode *parse_variable_declaration(ParserContext *ctx, bool expect_semicolon, bool* declared) {
 	printf("Parsing variable declaration\n");
 	assert(ctx->cur_token->typeinfo != NULL);
 
@@ -194,23 +194,24 @@ ASTNode *parse_variable_declaration(ParserContext *ctx) {
 
 			ASTNode *value_node = parse_expression(ctx);
 			
-			if (ctx->cur_token->punc_type != PUNC_SEMICOLON) {
+			if (expect_semicolon && ctx->cur_token->punc_type != PUNC_SEMICOLON) {
 				ERR_SYNTAX(ctx->cur_token, /* expected a */ "';'");
 			}
 
 			declaration_node->r_value = value_node;
 
-			advance_token(ctx);
+			if (expect_semicolon) advance_token(ctx);
+			if (declared) *declared = true;
 			return declaration_node;
-		} else if (ctx->cur_token->punc_type == PUNC_SEMICOLON) {
-			advance_token(ctx);
+		} else if (expect_semicolon && ctx->cur_token->punc_type == PUNC_SEMICOLON) {
+			if (expect_semicolon) advance_token(ctx);
 			return declaration_node;
 		}
-    } else {
+    } else if (expect_semicolon) {
 		ERR_SYNTAX(ctx->cur_token, /* expected a */ "';'");
 	}
     
-    return variable_node;
+    return declaration_node;
 }
 
 ASTNode *parse_function(ParserContext *ctx) {
@@ -227,7 +228,7 @@ ASTNode *parse_statement(ParserContext *ctx) {
 			return parse_function(ctx);
 		case TOKEN_PRIMITIVE_TYPE_SPECIFIER:
 			printf("hit?\n");
-			return parse_variable_declaration(ctx);
+			return parse_variable_declaration(ctx, true, NULL);
 		case TOKEN_KEYWORD_IF:
 			return parse_if_statement(ctx);
 		case TOKEN_KEYWORD_WHILE:
@@ -303,8 +304,27 @@ ASTNode *parse_if_statement(ParserContext *ctx) {
 }
 
 ASTNode *parse_while_statement(ParserContext *ctx) {
-	TODO("parse while statement");
-	return NULL;
+	assert(ctx->cur_token->token_type == TOKEN_KEYWORD_WHILE);
+	ASTNode* while_stmt = new_node_general(NODE_FOR, ctx->cur_token);
+	advance_token(ctx);
+
+	if (	ctx->cur_token->token_type != TOKEN_PUNCTUATOR 
+		|| 	ctx->cur_token->punc_type != PUNC_OPEN_PAREN	) {
+		ERR_SYNTAX(ctx->cur_token, /* expected a */ "open parenthesis '(' for while clause");
+	}
+	advance_token(ctx); // consume (
+
+	while_stmt->condition = parse_expression(ctx);
+
+	if (	ctx->cur_token->token_type != TOKEN_PUNCTUATOR 
+		|| 	ctx->cur_token->punc_type != PUNC_CLOSE_PAREN	) {
+		ERR_SYNTAX(ctx->cur_token, /* expected a */ "closing parenthesis ')' for end of while clause");
+	}
+	advance_token(ctx); // consume )
+
+	while_stmt->body = parse_block(ctx);
+
+	return while_stmt;
 }
 
 ASTNode *parse_for_statement(ParserContext *ctx) {
@@ -321,10 +341,25 @@ ASTNode *parse_for_statement(ParserContext *ctx) {
 	// init step
 	set_new_scope(ctx);
 
+	bool need_semicolon = false;
+	bool declared = false;
+	bool shorthand_for = false;
+
 	// general for (i32 i = 0; ...; ...) case or similar
 	// i.e. defining a variable in the init step of the for clause
 	if (ctx->cur_token->token_type == TOKEN_PRIMITIVE_TYPE_SPECIFIER) {
-		for_stmt->initial = parse_variable_declaration(ctx);
+		for_stmt->initial = parse_variable_declaration(ctx, false, &declared);
+		need_semicolon = true; // we didnt consume semicolon in parse_varaible_declaration so we consume it now
+
+		// checking whether this is a shorthand for loop
+		if (!declared) {
+			printf("HERE: %s\n", token_type_to_str(ctx->cur_token));
+			DEBUG_TOKEN_STR(ctx->cur_token);
+			if (ctx->cur_token->token_type == TOKEN_KEYWORD_IN) {
+				shorthand_for = true;
+				need_semicolon = false;
+			}
+		}
 	} 
 	
 	// for (i = 0; ...; ...) with predeclared i
@@ -342,40 +377,112 @@ ASTNode *parse_for_statement(ParserContext *ctx) {
 
 	else ERR_SYNTAX(ctx->cur_token, /* expected a */ "primitive type specifier (newly defined variable) or a predefined symbol identifier");
 
-	// semicolon checked and consumed by either parse_expr_statement or parse_variable_declaration
+	if (need_semicolon) {
+		if (!declared) {
+			ERR_SYNTAX(ctx->cur_token, /* expected a */ "an assignment in the initial step of the for loop");
+		}
+		
+		if (	ctx->cur_token->token_type != TOKEN_PUNCTUATOR 
+			|| 	ctx->cur_token->punc_type != PUNC_SEMICOLON	) {
+			ERR_SYNTAX(ctx->cur_token, /* expected a */ "semicolon ';' for condition step of for clause");
+		}
+		advance_token(ctx); // consume ;
+	}
 
-	// for (... ;; ...) case, i.e. skips condition, relying on break, or infinite loop
-	if (	ctx->cur_token->token_type == TOKEN_PUNCTUATOR 
-		&& 	ctx->cur_token->punc_type == PUNC_SEMICOLON		) {
-		for_stmt->condition = NULL;
+	if (!shorthand_for) {
+		// traditional for loops of form: for (init; cond; incr) { ... }
+		// we are currently						     ^^^^ here
+
+		// for (... ;; ...) case, i.e. skips condition, relying on break, or infinite loop
+		if (	ctx->cur_token->token_type == TOKEN_PUNCTUATOR 
+			&& 	ctx->cur_token->punc_type == PUNC_SEMICOLON		) {
+			for_stmt->condition = NULL;
+		} else {
+			for_stmt->condition = parse_expression(ctx);
+		}
+
+		if (	ctx->cur_token->token_type != TOKEN_PUNCTUATOR 
+			|| 	ctx->cur_token->punc_type != PUNC_SEMICOLON	) {
+			ERR_SYNTAX(ctx->cur_token, /* expected a */ "semicolon ';' for increment step of for clause");
+		}
+		advance_token(ctx); // consume ;
+
+		// for (... ; ... ;) case, i.e. skips increment
+		if (	ctx->cur_token->token_type == TOKEN_PUNCTUATOR 
+			&& 	ctx->cur_token->punc_type == PUNC_CLOSE_PAREN	) {
+			for_stmt->increment = NULL;
+		} else {
+			for_stmt->increment = parse_expression(ctx);
+		}
+
+		if (	ctx->cur_token->token_type != TOKEN_PUNCTUATOR 
+			|| 	ctx->cur_token->punc_type != PUNC_CLOSE_PAREN	) {
+			ERR_SYNTAX(ctx->cur_token, /* expected a */ "closing parenthesis ')' for end of for clause");
+		}
+		advance_token(ctx); // consume )
+
+		for_stmt->body = parse_block(ctx);
+
+		exit_scope(ctx);
+		return for_stmt;
 	} else {
-		for_stmt->condition = parse_expression(ctx);
+		// shorthand for loops of form: for (u32 i in a..b) { ... }
+		// we are currently						   ^^ here
+		assert(ctx->cur_token->token_type == TOKEN_KEYWORD_IN); // just make sure, in case we break this logic later
+		advance_token(ctx); // consume "in"
+
+		// need to:
+		// * set i = a
+		// * set condition to while i <= b
+		// * set increment to i++
+		
+		// set i = a
+		DEBUG_TOKEN_STR(ctx->cur_token);
+		print_token_info(ctx->cur_token); printf("\n");
+		ASTNode* a_value = parse_expression(ctx); // SEGFAULT HERE
+		for_stmt->initial->r_value = a_value;
+		
+		printf("OK");
+		if (	ctx->cur_token->token_type != TOKEN_PUNCTUATOR 
+			|| 	ctx->cur_token->punc_type != PUNC_DOTDOT	) {
+			ERR_SYNTAX(ctx->cur_token, /* expected a */ "'..' to demark ending for int value");
+		}
+
+		Token* dotdot_token = ctx->cur_token;
+		advance_token(ctx); // consume ".."
+
+		ASTNode* b_value = parse_expression(ctx);
+		ASTNode* iterator = for_stmt->initial->l_value;
+
+		// set up condition i <= b
+		ASTNode* condition = calloc(1, sizeof(ASTNode));
+		condition->node_type = NODE_VARIABLE;
+		condition->variable_symbol = iterator->variable_symbol;
+		condition->token = iterator->token;
+
+		for_stmt->condition = new_node_binary(NODE_LE, condition, b_value, dotdot_token);
+
+		// set increment to i++
+		ASTNode* increment = calloc(1, sizeof(ASTNode));
+		increment->node_type = NODE_VARIABLE;
+		increment->variable_symbol = iterator->variable_symbol;
+		increment->token = iterator->token;
+
+		for_stmt->increment = new_node_unary(NODE_INCREMENT, increment, increment->token);
+
+		if (	ctx->cur_token->token_type != TOKEN_PUNCTUATOR 
+			|| 	ctx->cur_token->punc_type != PUNC_CLOSE_PAREN	) {
+			ERR_SYNTAX(ctx->cur_token, /* expected a */ "closing parenthesis ')' for end of for clause");
+		}
+		advance_token(ctx); // consume )
+
+		for_stmt->body = parse_block(ctx);
+
+		exit_scope(ctx);
+		return for_stmt;
 	}
 
-	if (	ctx->cur_token->token_type != TOKEN_PUNCTUATOR 
-		|| 	ctx->cur_token->punc_type != PUNC_SEMICOLON	) {
-		ERR_SYNTAX(ctx->cur_token, /* expected a */ "semicolon ';' for increment step of for clause");
-	}
-	advance_token(ctx); // consume ;
-
-	// for (... ; ... ;) case, i.e. skips increment
-	if (	ctx->cur_token->token_type == TOKEN_PUNCTUATOR 
-		&& 	ctx->cur_token->punc_type == PUNC_CLOSE_PAREN	) {
-		for_stmt->increment = NULL;
-	} else {
-		for_stmt->increment = parse_expression(ctx);
-	}
-
-	if (	ctx->cur_token->token_type != TOKEN_PUNCTUATOR 
-		|| 	ctx->cur_token->punc_type != PUNC_CLOSE_PAREN	) {
-		ERR_SYNTAX(ctx->cur_token, /* expected a */ "closing parenthesis ')' for end of for clause");
-	}
-	advance_token(ctx); // consume )
-
-	for_stmt->body = parse_block(ctx);
-
-	exit_scope(ctx);
-	return for_stmt;
+	
 }
 
 Scope *set_new_scope(ParserContext *ctx) {
@@ -418,7 +525,7 @@ ASTNode *parse_block(ParserContext *ctx) {
 
 	if (	ctx->cur_token->token_type != TOKEN_PUNCTUATOR 
 		|| 	ctx->cur_token->punc_type != PUNC_CLOSE_CURLY	) {
-		ERR_SYNTAX(ctx->cur_token, /* expected a */ "close curly '{' for block");
+		ERR_SYNTAX(ctx->cur_token, /* expected a */ "close curly '}' for block");
 	}
 	advance_token(ctx); // consume }
 	

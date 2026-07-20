@@ -118,6 +118,7 @@ Token* L_ReadNumberLiteral(FileInfo* source, char* pointer, uint64_t* line_num) 
                 is_float = true;
         }
         else if (*pointer == '.') {
+            if (is_float || *(pointer + 1) == '.') break; // prevent things like 1..32 or 1.3.2 being classed as a float 
             pointer++;
             is_float = true;
         }
@@ -270,7 +271,7 @@ TokenType L_GetIdentifierType(char* pointer, size_t len, Type* type, bool* is_un
     if (len == 5 && strncmp(pointer, "break", 5) == 0) return TOKEN_KEYWORD_BREAK;
     if (len == 8 && strncmp(pointer, "continue", 6) == 0) return TOKEN_KEYWORD_CONTINUE;
     if (len == 6 && strncmp(pointer, "import", 6) == 0) return TOKEN_KEYWORD_IMPORT;
-    if (len == 2 && strncmp(pointer, "in", 6) == 0) return TOKEN_KEYWORD_IN;
+    if (len == 2 && strncmp(pointer, "in", 2) == 0) return TOKEN_KEYWORD_IN;
     if (len == 4 && strncmp(pointer, "NULL", 4) == 0) return TOKEN_NULL;
 
     *is_unsigned = false;
@@ -594,6 +595,9 @@ const char *token_type_to_str(Token *current) {
 		case TOKEN_SYMBOL_IDENTIFIER:
 			return "SYMBOL_IDENTIFIER";
 			break;
+        case TOKEN_KEYWORD_IN:
+            return "IN";
+            break;
 		case TOKEN_PRIMITIVE_TYPE_SPECIFIER:
 			if (current->typeinfo != NULL) {
 				return type_to_str(current->typeinfo->type, current->typeinfo->is_unsigned);
@@ -637,11 +641,8 @@ const char *token_type_to_str(Token *current) {
 	}
 }
 
-
-void print_tokens(Token *tokens) {
-	Token *current = tokens;
-	while (current != NULL) {
-		printf("%s %s %lu %Lf %s %s %lu %s %hu %s",
+void print_token_info(Token* current) {
+    printf("%s %s %lu %Lf %s %s %lu %s %hu %s",
 			token_type_to_str(current),
 			current->lexeme == NULL ? "(null)" : current->lexeme,
     		current->int_val,
@@ -653,8 +654,13 @@ void print_tokens(Token *tokens) {
             current->token_type == TOKEN_PRIMITIVE_TYPE_SPECIFIER ?   current->typeinfo->pointer_depth : 0,
             current->token_type == TOKEN_PRIMITIVE_TYPE_SPECIFIER ?(current->typeinfo->is_optional ? "nullable" : "nonnull") : "N/A"
 		);
-		printf("\n");
+}
 
+void print_tokens(Token *tokens) {
+	Token *current = tokens;
+	while (current != NULL) {
+		print_token_info(current);
+		printf("\n");
 		current = current->next;
 	}
 }

@@ -48,7 +48,7 @@ Scope *exit_scope(ParserContext *ctx);
 
 ASTNode *new_node_general(NodeType type, Token *tok);
 ASTNode *parse_variable_assignment(ParserContext *ctx);
-ASTNode *parse_variable_declaration(ParserContext *ctx);
+ASTNode *parse_variable_declaration(ParserContext *ctx, bool expect_semicolon, bool* declared);
 ASTNode *parse_statement(ParserContext *ctx);
 ASTNode *parse_function(ParserContext *ctx);
 ASTNode *parse_if_statement(ParserContext *ctx);
