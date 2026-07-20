@@ -1052,6 +1052,8 @@ const char* node_to_str(NodeType type) {
 }
 
 void trace(ASTNode* head, size_t depth) {
+	if (head == NULL) return;
+
 	for (size_t i = 0; i < depth; i++) printf("  ");
 	printf("%s", node_to_str(head->node_type));
 
@@ -1097,10 +1099,14 @@ void trace(ASTNode* head, size_t depth) {
 		printf("* COND:\n"); trace(head->condition, depth + 1); 
 		for (size_t i = 0; i < depth; i++) printf("  ");
 		printf("]\n");
-		for (size_t i = 0; i < depth; i++) printf("  ");
-		if (head->on_condition_success) printf("THEN\n"); trace(head->on_condition_success, depth + 1);
-		for (size_t i = 0; i < depth; i++) printf("  ");
-		if (head->on_condition_failure) printf("ELSE\n"); trace(head->on_condition_failure, depth + 1);
+		if (head->on_condition_success) {
+			for (size_t i = 0; i < depth; i++) printf("  ");
+			printf("THEN\n"); trace(head->on_condition_success, depth + 1);
+		}
+		if (head->on_condition_failure) {
+			for (size_t i = 0; i < depth; i++) printf("  ");
+			printf("ELSE\n"); trace(head->on_condition_failure, depth + 1);
+		}
 	}
 
 	if (head->node_type == NODE_LITERAL_INT) printf(" [%lu]", head->token->int_val);
