@@ -344,11 +344,11 @@ IROperand lower_expr(OptimiserContext* ctx, ASTNode* node) {
             IROperand label = new_label(ctx);
             emit(ctx, IR_ASSIGN, res, FALSE, IROPERAND_EMPTY);
 
-            IROperand lhs = lower_expr(ctx, node->l_value);
-            IROperand rhs = lower_expr(ctx, node->r_value);
-
             // if lhs == 0 or rhs == 0 skip straight to the label, because we know lhs && rhs is false
+            IROperand lhs = lower_expr(ctx, node->l_value);
             emit(ctx, IR_JUMP_IF_ZERO, IROPERAND_EMPTY, lhs, label);
+            
+            IROperand rhs = lower_expr(ctx, node->r_value);
             emit(ctx, IR_JUMP_IF_ZERO, IROPERAND_EMPTY, rhs, label);
 
             emit(ctx, IR_ASSIGN, res, TRUE, IROPERAND_EMPTY);
@@ -377,11 +377,11 @@ IROperand lower_expr(OptimiserContext* ctx, ASTNode* node) {
             IROperand label = new_label(ctx);
             emit(ctx, IR_ASSIGN, res, TRUE, IROPERAND_EMPTY);
 
-            IROperand lhs = lower_expr(ctx, node->l_value);
-            IROperand rhs = lower_expr(ctx, node->r_value);
-
             // if lhs == 1 or rhs == 1 skip straight to the label, because we know lhs || rhs is true
+            IROperand lhs = lower_expr(ctx, node->l_value);
             emit(ctx, IR_JUMP_IF_NONZERO, IROPERAND_EMPTY, lhs, label);
+            
+            IROperand rhs = lower_expr(ctx, node->r_value);
             emit(ctx, IR_JUMP_IF_NONZERO, IROPERAND_EMPTY, rhs, label);
 
             emit(ctx, IR_ASSIGN, res, FALSE, IROPERAND_EMPTY);
