@@ -124,6 +124,11 @@ ASTNode *new_node_general(NodeType type, Token* tok) {
 // but in main, i could NOT use nested_scope_var because i have no access to it
 
 Symbol *new_symbol(ParserContext *ctx, char *sym_identifier, TypeInfo* typeinfo) {
+	// check symbol does not already exist
+	if (symbol_lookup(ctx->cur_scope, sym_identifier) != NULL) {
+		ERR_SEMANTIC(ctx->cur_token, "trying to declare a variable with an identifier already held by another variable in the same scope");
+	}
+	
 	Symbol *new_symbol = calloc(1, sizeof(Symbol));
 	new_symbol->name = sym_identifier;
 	new_symbol->next = NULL;

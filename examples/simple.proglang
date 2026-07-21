@@ -11,9 +11,20 @@
 //     steps++;
 // }
 
-u64 tally = 0;
-for (u32 i in 1..32) {
-    if (tally > 0 || i < 32) {
-        tally++;
-    }
+// u64 tally = 0;
+// for (u32 i in 1..32) {
+//     if (tally > 0 || i < 32) {
+//         tally++;
+//     }
+// }
+
+u32 v;
+
+{
+    u32 i;
+    u32 v;
+}
+
+{
+    u32 i;
 }

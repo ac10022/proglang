@@ -46,6 +46,9 @@ ASTNode *generate_ast(Token *head);
 Scope *set_new_scope(ParserContext *ctx);
 Scope *exit_scope(ParserContext *ctx);
 
+Symbol *new_symbol(ParserContext *ctx, char *sym_identifier, TypeInfo* typeinfo);
+Symbol *symbol_lookup(Scope *scope, char *sym_name);
+
 ASTNode *new_node_general(NodeType type, Token *tok);
 ASTNode *parse_variable_assignment(ParserContext *ctx);
 ASTNode *parse_variable_declaration(ParserContext *ctx, bool expect_semicolon, bool* declared);

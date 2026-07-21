@@ -269,7 +269,7 @@ TokenType L_GetIdentifierType(char* pointer, size_t len, Type* type, bool* is_un
     if (len == 3 && strncmp(pointer, "for", 3) == 0) return TOKEN_KEYWORD_FOR;
     if (len == 6 && strncmp(pointer, "return", 6) == 0) return TOKEN_KEYWORD_RETURN;
     if (len == 5 && strncmp(pointer, "break", 5) == 0) return TOKEN_KEYWORD_BREAK;
-    if (len == 8 && strncmp(pointer, "continue", 6) == 0) return TOKEN_KEYWORD_CONTINUE;
+    if (len == 8 && strncmp(pointer, "continue", 8) == 0) return TOKEN_KEYWORD_CONTINUE;
     if (len == 6 && strncmp(pointer, "import", 6) == 0) return TOKEN_KEYWORD_IMPORT;
     if (len == 2 && strncmp(pointer, "in", 2) == 0) return TOKEN_KEYWORD_IN;
     if (len == 4 && strncmp(pointer, "NULL", 4) == 0) return TOKEN_NULL;
@@ -589,55 +589,29 @@ const char *type_to_str(Type type, bool is_unsigned) {
 
 const char *token_type_to_str(Token *current) {
 	switch (current->token_type) {
-		case TOKEN_KEYWORD_FUNCTION: 
-			return "KEYWORD_FUNCTION";
-			break;
-		case TOKEN_SYMBOL_IDENTIFIER:
-			return "SYMBOL_IDENTIFIER";
-			break;
-        case TOKEN_KEYWORD_IN:
-            return "IN";
-            break;
-		case TOKEN_PRIMITIVE_TYPE_SPECIFIER:
+		case TOKEN_KEYWORD_FUNCTION:    return "KEYWORD_FUNCTION";
+		case TOKEN_SYMBOL_IDENTIFIER:   return "SYMBOL_IDENTIFIER";
+        case TOKEN_KEYWORD_IN:          return "IN";
+		case TOKEN_KEYWORD_IF:          return "KEYWORD_IF";
+        case TOKEN_KEYWORD_ELSE:        return "KEYWORD_ELSE";
+		case TOKEN_KEYWORD_WHILE:       return "KEYWORD_WHILE";   
+		case TOKEN_KEYWORD_FOR:         return "KEYWORD_FOR";
+		case TOKEN_KEYWORD_RETURN:      return "KEYWORD_RETURN";   
+		case TOKEN_STRING_LITERAL:      return "STRING_LITERAL";  
+		case TOKEN_INT_LITERAL:         return "INT_LITERAL";     
+		case TOKEN_FLOAT_LITERAL:       return "FLOAT_LITERAL";  
+		case TOKEN_PUNCTUATOR:          return "PUNCTUATOR"; 
+        case TOKEN_NULL:                return "NULL_TOKEN";
+		case TOKEN_EOF:                 return "END OF FILE"; 
+
+        case TOKEN_PRIMITIVE_TYPE_SPECIFIER:
 			if (current->typeinfo != NULL) {
 				return type_to_str(current->typeinfo->type, current->typeinfo->is_unsigned);
 			} else {
 				return "PRIMITIVE_TYPE_SPECIFIER (UNKNOWN)";
 			}
-			break;
-		case TOKEN_KEYWORD_IF: 
-			return "KEYWORD_IF";
-			break;
-        case TOKEN_KEYWORD_ELSE:
-            return "KEYWORD_ELSE";
-            break;
-		case TOKEN_KEYWORD_WHILE: 
-			return "KEYWORD_WHILE";   
-			break;
-		case TOKEN_KEYWORD_FOR: 
-			return "KEYWORD_FOR";
-			break;
-		case TOKEN_KEYWORD_RETURN: 
-			return "KEYWORD_RETURN";   
-			break;
-		case TOKEN_STRING_LITERAL: 
-			return "STRING_LITERAL";  
-			break;
-		case TOKEN_INT_LITERAL:
-			return "INT_LITERAL";     
-			break;
-		case TOKEN_FLOAT_LITERAL:
-			return "FLOAT_LITERAL";  
-			break;
-		case TOKEN_PUNCTUATOR: 
-			return "PUNCTUATOR"; 
-			break;
-        case TOKEN_NULL:
-            return "NULL_TOKEN";
-            break;
-		case TOKEN_EOF:
-			return "END OF FILE"; 
-			break;
+        
+        default:                        return "UNKNOWN TOKEN TYPE";
 	}
 }
 

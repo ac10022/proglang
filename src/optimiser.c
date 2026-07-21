@@ -330,11 +330,12 @@ IROperand lower_expr(OptimiserContext* ctx, ASTNode* node) {
         }
 
         // !x <==> (x == 0) i.e. (x == false)
-        case NODE_NOT:
+        case NODE_NOT: {
             IROperand lhs = lower_expr(ctx, node->r_value);
             IROperand temp = new_temp(ctx);
             emit(ctx, IR_EQ, temp, lhs, FALSE);
             return temp;
+        }
 
         // case (boolean)
         case NODE_LOGAND: {
