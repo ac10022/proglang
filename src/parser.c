@@ -673,7 +673,7 @@ ASTNode* parse_logical_or(ParserContext* ctx) {
 }
 
 ASTNode* parse_logical_and(ParserContext* ctx) {
-	ASTNode* left = parse_equality(ctx);
+	ASTNode* left = parse_bitwise_or(ctx);
 
 	while (		ctx->cur_token->token_type != TOKEN_EOF
 		  && 	ctx->cur_token->token_type == TOKEN_PUNCTUATOR
@@ -681,8 +681,57 @@ ASTNode* parse_logical_and(ParserContext* ctx) {
 		Token* ref = ctx->cur_token;
 		advance_token(ctx);
 
-		ASTNode* right = parse_equality(ctx);
+		ASTNode* right = parse_bitwise_or(ctx);
 		left = new_node_binary(NODE_LOGAND, left, right, ref);
+	}
+
+	return left;
+}
+
+ASTNode* parse_bitwise_or(ParserContext* ctx) {
+	ASTNode* left = parse_bitwise_xor(ctx);
+
+	while (		ctx->cur_token->token_type != TOKEN_EOF
+		  && 	ctx->cur_token->token_type == TOKEN_PUNCTUATOR
+		  && 	ctx->cur_token->punc_type == PUNC_BITWISE_OR	) {
+		Token* ref = ctx->cur_token;
+		advance_token(ctx);
+
+		ASTNode* right = parse_bitwise_xor(ctx);
+		left = new_node_binary(NODE_BITOR, left, right, ref);
+	}
+
+	return left;
+}
+
+ASTNode* parse_bitwise_xor(ParserContext* ctx) {
+	ASTNode* left = parse_bitwise_and(ctx);
+
+	while (		ctx->cur_token->token_type != TOKEN_EOF
+		  && 	ctx->cur_token->token_type == TOKEN_PUNCTUATOR
+		  && 	ctx->cur_token->punc_type == PUNC_BITWISE_XOR	) {
+		Token* ref = ctx->cur_token;
+		advance_token(ctx);
+
+		ASTNode* right = parse_bitwise_and(ctx);
+		left = new_node_binary(NODE_BITXOR, left, right, ref);
+	}
+
+	return left;
+}
+
+ASTNode* parse_bitwise_and(ParserContext* ctx) {
+	ASTNode* left = parse_equality(ctx);
+
+	while (		ctx->cur_token->token_type != TOKEN_EOF
+		  && 	ctx->cur_token->token_type == TOKEN_PUNCTUATOR
+		  && 	ctx->cur_token->punc_type == PUNC_AMPERSAND	) { 
+			//								 ^^^^^^^^^^^^^^ this might get confused with address operator
+		Token* ref = ctx->cur_token;
+		advance_token(ctx);
+
+		ASTNode* right = parse_equality(ctx);
+		left = new_node_binary(NODE_BITAND, left, right, ref);
 	}
 
 	return left;
@@ -831,7 +880,7 @@ ASTNode* parse_unary(ParserContext* ctx) {
 				case PUNC_LOGICAL_NOT: 	return new_node_unary(NODE_NOT, operand, ref);
 				case PUNC_AMPERSAND: 	return new_node_unary(NODE_ADDR, operand, ref);
 				case PUNC_BITWISE_NOT: 	return new_node_unary(NODE_BITNOT, operand, ref);
-				case PUNC_SUBTRACTION: 	return new_node_unary(NODE_SUB, operand, ref);
+				case PUNC_SUBTRACTION: 	return new_node_unary(NODE_NEG, operand, ref);
 				case PUNC_MULTIPLY: 	return new_node_unary(NODE_DEREF, operand, ref);
 			}
 		}
@@ -1031,6 +1080,11 @@ const char* node_to_str(NodeType type) {
 		case NODE_SHR:					return "SHR (>>)";
         case NODE_LOGOR:                return "LOGICAL_OR (||)";
         case NODE_LOGAND:               return "LOGICAL_AND (&&)";
+		case NODE_BITAND:				return "BITWISE_AND (&)";
+		case NODE_BITOR:				return "BITWISE_OR (|)";
+		case NODE_BITXOR:				return "BITWISE_XOR (^)";
+        case NODE_BITNOT:               return "BITWISE_NOT (~)";
+		case NODE_NEG:					return "NEGATE (-)";
         case NODE_EQ:                   return "EQUAL (==)";
         case NODE_NE:                   return "NOT_EQUAL (!=)";
         case NODE_LT:                   return "LESS_THAN (<)";
@@ -1039,7 +1093,6 @@ const char* node_to_str(NodeType type) {
         case NODE_GE:                   return "GREATER_EQUAL (>=)";
         case NODE_NOT:                  return "UNARY_NOT (!)";
         case NODE_ADDR:                 return "ADDRESS_OF (&)";
-        case NODE_BITNOT:               return "BITWISE_NOT (~)";
         case NODE_INCREMENT:            return "INCREMENT (++)";
         case NODE_DECREMENT:            return "DECREMENT (--)";
         case NODE_DEREF:                return "DEREFERENCE (*)";
