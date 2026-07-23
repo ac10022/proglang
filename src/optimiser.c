@@ -35,6 +35,8 @@ IROperation node_to_irop(NodeType type) {
         
         default:                TODO("implement this irop");
     }
+
+    return (IROperation){0}; // here to shut up compiler
 }
 
 void initialise_optim_context(OptimiserContext* ctx) {
@@ -409,9 +411,13 @@ IROperand lower_expr(OptimiserContext* ctx, ASTNode* node) {
         case NODE_COMMA:
         case NODE_MEMBER:
         default: 
+#ifdef DEBUG
             printf("%d %s\n", node->node_type, node_to_str(node->node_type));
+#endif
             TODO("lower specific expression type");
     }
+
+    return IROPERAND_EMPTY; // here to shut up compiler
 }
 
 #ifdef DEBUG
@@ -457,7 +463,7 @@ void print_ir_operand(IROperand op) {
         case IROP_LABEL:        printf("$l%zu", op.label_id); return;
 
         case IROP_EMPTY:
-        default:                printf("");
+        default:                return;
     }
 }
 

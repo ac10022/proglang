@@ -624,7 +624,7 @@ void print_token_info(Token* current) {
     		current->str_val, 
     		current->source->filepath,     
     		current->line_number,
-			current->punc_type != NULL ? punc_to_str(current->punc_type) : "(null)",
+			current->punc_type != PUNC_INVALID ? punc_to_str(current->punc_type) : "(null)",
             current->token_type == TOKEN_PRIMITIVE_TYPE_SPECIFIER ?   current->typeinfo->pointer_depth : 0,
             current->token_type == TOKEN_PRIMITIVE_TYPE_SPECIFIER ?(current->typeinfo->is_optional ? "nullable" : "nonnull") : "N/A"
 		);

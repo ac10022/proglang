@@ -224,15 +224,20 @@ ASTNode *parse_function(ParserContext *ctx) {
 }
 
 ASTNode *parse_statement(ParserContext *ctx) {
+#ifdef DEBUG
 	printf("parsing statement\n");
 	printf("%s\n", token_type_to_str(ctx->cur_token));
 	DEBUG_TOKEN_STR(ctx->cur_token);
+#endif
 	switch (ctx->cur_token->token_type) {
 		case TOKEN_KEYWORD_FUNCTION:
 			// defining a function
+			TODO("parse function"); // just to stop compiler getting stuck in infinite loop
 			return parse_function(ctx);
 		case TOKEN_PRIMITIVE_TYPE_SPECIFIER:
+#ifdef DEBUG
 			printf("hit?\n");
+#endif
 			return parse_variable_declaration(ctx, true, NULL);
 		case TOKEN_KEYWORD_IF:
 			return parse_if_statement(ctx);
@@ -244,6 +249,8 @@ ASTNode *parse_statement(ParserContext *ctx) {
 			return parse_return_statement(ctx);
 		case TOKEN_PUNCTUATOR:
 			if (ctx->cur_token->punc_type == PUNC_OPEN_CURLY) return parse_block(ctx);
+			TODO("how did you even call parse_statement on a punctuator?");
+			return NULL;
 		case TOKEN_SYMBOL_IDENTIFIER:
 			// calling a function, or assigning a variable
 			return parse_expr_statement(ctx);
@@ -358,8 +365,10 @@ ASTNode *parse_for_statement(ParserContext *ctx) {
 
 		// checking whether this is a shorthand for loop
 		if (!declared) {
+#ifdef DEBUG
 			printf("HERE: %s\n", token_type_to_str(ctx->cur_token));
 			DEBUG_TOKEN_STR(ctx->cur_token);
+#endif
 			if (ctx->cur_token->token_type == TOKEN_KEYWORD_IN) {
 				shorthand_for = true;
 				need_semicolon = false;
@@ -442,12 +451,13 @@ ASTNode *parse_for_statement(ParserContext *ctx) {
 		// * set increment to i++
 		
 		// set i = a
+#ifdef DEBUG
 		DEBUG_TOKEN_STR(ctx->cur_token);
 		print_token_info(ctx->cur_token); printf("\n");
-		ASTNode* a_value = parse_expression(ctx); // SEGFAULT HERE
+#endif
+		ASTNode* a_value = parse_expression(ctx);
 		for_stmt->initial->r_value = a_value;
-		
-		printf("OK");
+	
 		if (	ctx->cur_token->token_type != TOKEN_PUNCTUATOR 
 			|| 	ctx->cur_token->punc_type != PUNC_DOTDOT	) {
 			ERR_SYNTAX(ctx->cur_token, /* expected a */ "'..' to demark ending for int value");
@@ -661,10 +671,10 @@ ASTNode* parse_logical_or(ParserContext* ctx) {
 
 		ASTNode* right = parse_logical_and(ctx);
 		left = new_node_binary(NODE_LOGOR, left, right, ref);
-		// the new_node_binary part forms the tree, basically we have just done
-		//		 LOG_OR
-		//		/		\
-		//	  left     right
+		/* the new_node_binary part forms the tree, basically we have just done
+		 *		 LOG_OR
+		 *		/		\
+		 *	  left     right													*/
 
 		// then setting left to be this new formed tree, the new tree becomes the left side for the next iteration of the loop
 	}
@@ -776,6 +786,7 @@ ASTNode* parse_comparison(ParserContext* ctx) {
 			case PUNC_GREATER:  left = new_node_binary(NODE_GT, left, right, ref); break;
 			case PUNC_GEQ: 		left = new_node_binary(NODE_GE, left, right, ref); break;
 			case PUNC_LEQ: 		left = new_node_binary(NODE_LE, left, right, ref); break;
+			default: ERR_GENERAL("Unreachable");
 		}
 	}
 
@@ -838,6 +849,7 @@ ASTNode* parse_factor(ParserContext* ctx) {
 			case PUNC_MULTIPLY: left = new_node_binary(NODE_MUL, left, right, ref); break;
 			case PUNC_DIVIDE:   left = new_node_binary(NODE_DIV, left, right, ref); break;
 			case PUNC_MOD: 		left = new_node_binary(NODE_MOD, left, right, ref); break;
+			default: ERR_GENERAL("Unreachable");
 		}
 	}
 
@@ -882,6 +894,7 @@ ASTNode* parse_unary(ParserContext* ctx) {
 				case PUNC_BITWISE_NOT: 	return new_node_unary(NODE_BITNOT, operand, ref);
 				case PUNC_SUBTRACTION: 	return new_node_unary(NODE_NEG, operand, ref);
 				case PUNC_MULTIPLY: 	return new_node_unary(NODE_DEREF, operand, ref);
+				default: ERR_GENERAL("Unreachable");
 			}
 		}
 	}

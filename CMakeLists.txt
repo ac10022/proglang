@@ -2,6 +2,8 @@ cmake_minimum_required(VERSION 3.10)
  
 project(proglang)
 
+add_compile_options(-Wall -Wextra -Wno-psabi)
+
 set(SOURCES
 	src/file.c
 	src/lexer.c
