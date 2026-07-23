@@ -35,6 +35,11 @@ typedef enum {
     IR_JUMP,
     IR_JUMP_IF_ZERO,
     IR_JUMP_IF_NONZERO,
+
+    IR_BEGIN_SCOPE,
+    IR_END_SCOPE,
+
+    IR_HALT,
 } IROperation;
 
 typedef enum {

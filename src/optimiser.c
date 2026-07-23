@@ -86,6 +86,7 @@ IRInstruction* ast_to_ir(ASTNode* root) {
         lower(&o_ctx, statement);
     }
 
+    emit(&o_ctx, IR_HALT, IROPERAND_EMPTY, IROPERAND_EMPTY, IROPERAND_EMPTY);
     return o_ctx.instructions;
 }
 
@@ -156,9 +157,9 @@ void lower(OptimiserContext* ctx, ASTNode* node) {
         }
             
         case NODE_BLOCK: {
-            // temp solution you probably gotta do something with scope
+            emit(ctx, IR_BEGIN_SCOPE, IROPERAND_EMPTY, IROPERAND_EMPTY, IROPERAND_EMPTY);
             for (ASTNode* end = node->body; end != NULL; end = end->next) lower(ctx, end);
-            //TODO("lower block");
+            emit(ctx, IR_END_SCOPE, IROPERAND_EMPTY, IROPERAND_EMPTY, IROPERAND_EMPTY);
             break;
         }
             
@@ -477,12 +478,18 @@ void print_ir(IRInstruction* instruction) {
         print_ir_operand(instruction->src2);
         printf(" IF ");
         print_ir_operand(instruction->src1);
-        printf(" NONZERO");
+        printf(" NONZERO\n");
     } else if (instruction->op == IR_JUMP) {
         printf("JUMP TO ");
         print_ir_operand(instruction->src2);
     } else if (instruction->op == IR_LABEL) {
         printf("\nLABEL "); print_ir_operand(instruction->dest); printf(":");
+    } else if (instruction->op == IR_BEGIN_SCOPE) {
+        printf("* BEGIN NEW SCOPE *");
+    } else if (instruction->op == IR_END_SCOPE) {
+        printf("* END CURRENT SCOPE *");
+    } else if (instruction->op == IR_HALT) {
+        printf("* PROGRAM HALT *");
     } else {
         print_ir_operand(instruction->dest);
         printf("=");
