@@ -2,7 +2,8 @@ cmake_minimum_required(VERSION 3.10)
  
 project(proglang)
 
-add_compile_options(-Wall -Wextra -Wno-psabi)
+add_compile_options(-Wall -Wextra -Wno-psabi -Wno-unused-parameter -Wno-unused-variable)
+#											 ^^^ 				   ^^^ remove these when project is done
 
 set(SOURCES
 	src/file.c
