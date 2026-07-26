@@ -25,5 +25,4 @@ int main(int argc, char *argv[]) {
 	printf("\n*** IR LIST TRACE ***\n\n");
 	print_ir_list(ir_list);
 #endif
-
 }

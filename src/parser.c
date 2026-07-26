@@ -172,7 +172,9 @@ Symbol *symbol_lookup(Scope *scope, char *sym_name) {
 }
 
 ASTNode *parse_variable_declaration(ParserContext *ctx, bool expect_semicolon, bool* declared) {
+#ifdef DEBUG
 	printf("Parsing variable declaration\n");
+#endif
 	assert(ctx->cur_token->typeinfo != NULL);
 
     TypeInfo* typeinfo = ctx->cur_token->typeinfo;
@@ -632,6 +634,13 @@ ASTNode *parse_variable_assignment(ParserContext *ctx) {
 		Token* ref = ctx->cur_token;
 		advance_token(ctx);
 
+		if (	left->node_type != NODE_VARIABLE
+			&&	left->node_type != NODE_MEMBER		) {
+			// this should call if you are doing something like 5 = 1 + 2
+			// i.e. lval is not a variable or member
+			ERR_SEMANTIC(ctx->cur_token, "attempted to assign a non-assignable lvalue");
+		}
+
 		// here instead we do recursive call because assignment links right to left 
 		// i.e. a = b = c   <====> a = (b = c)
 		ASTNode* right = parse_variable_assignment(ctx);
@@ -649,7 +658,44 @@ ASTNode *parse_variable_assignment(ParserContext *ctx) {
 		|| 	ctx->cur_token->punc_type == PUNC_XOREQ
 		|| 	ctx->cur_token->punc_type == PUNC_RS_EQ
 		|| 	ctx->cur_token->punc_type == PUNC_LS_EQ			)) {
-		TODO("eq assignment operations");
+		Token* ref = ctx->cur_token;
+		advance_token(ctx);
+
+		if (	left->node_type != NODE_VARIABLE
+			&&	left->node_type != NODE_MEMBER		) {
+			// this should call if you are doing something like 5 += 1
+			// i.e. lval is not a variable or member
+			ERR_SEMANTIC(ctx->cur_token, "attempted to assign a non-assignable lvalue");
+		}
+
+		/*		
+		 * 		NODE_ASSIGN
+		 *		/		  \
+		 *  lval	     optype
+		 * 				/	   \
+		 *			lval       rval
+		 */ 
+		
+		// it wouldnt really make sense to have something like x += y = z, so we just skip to logical or instead of allowing rhs to also be assignment
+		ASTNode* right = parse_logical_or(ctx);
+
+		NodeType optype = NODE_NULL_EXPR;
+		switch (ref->punc_type) {
+			case PUNC_ADDEQ:	optype = NODE_ADD; break;
+			case PUNC_SUBEQ:	optype = NODE_SUB; break;
+			case PUNC_MULEQ:	optype = NODE_MUL; break;
+			case PUNC_DIVEQ:	optype = NODE_DIV; break;
+			case PUNC_MODEQ:	optype = NODE_MOD; break;
+			case PUNC_ANDEQ:	optype = NODE_BITAND; break;
+			case PUNC_OREQ:		optype = NODE_BITOR; break;
+			case PUNC_XOREQ:	optype = NODE_BITXOR; break;
+			case PUNC_RS_EQ:	optype = NODE_SHR; break;
+			case PUNC_LS_EQ:	optype = NODE_SHL; break;
+			default: ERR_GENERAL("Unreachable");
+		}
+
+		ASTNode* rhs = new_node_binary(optype, left, right, ref);
+		return new_node_binary(NODE_ASSIGN, left, rhs, ref); 
 	}
 
 	return left;

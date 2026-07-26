@@ -28,9 +28,9 @@
         STOP_COMPILATION(); \
     } while (0)
 
-#define ERR_SYNTAX(tok_deref, expected) ERR_GENERAL("Syntax error on line %lu; expected "expected", got '%.*s'.", (tok_deref)->line_number, TOK_STR_VAL(tok_deref)); 
+#define ERR_SYNTAX(tok_deref, expected) ERR_GENERAL("%s:%lu:\tSyntax error; expected "expected", got '%.*s'.", (tok_deref)->source->filepath, (tok_deref)->line_number, TOK_STR_VAL(tok_deref)); 
 
-#define ERR_SEMANTIC(tok_deref, msg) ERR_GENERAL("Semantic error on line %lu; "msg", got '%.*s'.", (tok_deref)->line_number, TOK_STR_VAL(tok_deref));
+#define ERR_SEMANTIC(tok_deref, msg) ERR_GENERAL("%s:%lu:\tSemantic error; "msg", got '%.*s'.", (tok_deref)->source->filepath, (tok_deref)->line_number, TOK_STR_VAL(tok_deref));
 
 #define DEBUG_TOKEN_STR(tok) printf("%.*s\n", TOK_STR_VAL(tok))
 
