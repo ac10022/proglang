@@ -7,7 +7,7 @@ int main(int argc, char *argv[]) {
 	}
 
 	char *file_path = argv[1];
-	Token *tokens = L_TokenizeFile(file_path);
+	Token *tokens = tokenize_file(file_path);
 
 #ifdef DEBUG
 	// print_tokens(tokens);

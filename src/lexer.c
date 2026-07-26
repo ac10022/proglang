@@ -82,7 +82,7 @@ static const TypeSizeKVP primitive_type_sizes[] = {
     {TYPE_FLOAT64, 64},
 };
 
-Token* L_NewToken(
+Token* new_token(
     TokenType token_type, 
     char* start_pointer, 
     char* end_pointer,
@@ -104,7 +104,7 @@ Token* L_NewToken(
     return tok;
 }
 
-Token* L_ReadNumberLiteral(FileInfo* source, char* pointer, uint64_t* line_num) {
+Token* read_num_literal(FileInfo* source, char* pointer, uint64_t* line_num) {
     char* start = pointer++;
     bool is_float = false;
 
@@ -129,7 +129,7 @@ Token* L_ReadNumberLiteral(FileInfo* source, char* pointer, uint64_t* line_num) 
     }
 
     TokenType type = is_float ? TOKEN_FLOAT_LITERAL : TOKEN_INT_LITERAL;
-    Token* tok = L_NewToken(type, start, pointer, source, *line_num);
+    Token* tok = new_token(type, start, pointer, source, *line_num);
 
     char* end; // dont actually need this for lexer but required for strtold and strtoull
     if (is_float) {
@@ -141,7 +141,7 @@ Token* L_ReadNumberLiteral(FileInfo* source, char* pointer, uint64_t* line_num) 
     return tok;
 }
 
-char* L_FindStringEnd(char* pointer) {
+char* find_string_end(char* pointer) {
     char* start = pointer;
     while (*pointer != '"') {
         if (CHR_IS_NEWLINE(*pointer) || *pointer == '\0') ERR_GENERAL("Unclosed string literal at %p", start);
@@ -151,7 +151,7 @@ char* L_FindStringEnd(char* pointer) {
     return pointer;
 }
 
-uint64_t L_ReadEscapedCharacter(char* pointer, char** end) {
+uint64_t read_escaped_char(char* pointer, char** end) {
     // octal case
     size_t i = 0;
     uint64_t out = 0;
@@ -178,7 +178,7 @@ uint64_t L_ReadEscapedCharacter(char* pointer, char** end) {
         size_t hex_digits = 0;
         while (isxdigit((unsigned char)*pointer)) {
             // to stop overflow
-            if (hex_digits < 16) out = (out << 4) + L_HexToInt(*pointer);
+            if (hex_digits < 16) out = (out << 4) + hex_to_int(*pointer);
             pointer++;
             hex_digits++;
         }
@@ -209,32 +209,32 @@ uint64_t L_ReadEscapedCharacter(char* pointer, char** end) {
     ERR_GENERAL("Unreachable");
 }
 
-Token* L_ReadStringLiteral(FileInfo* source, char* pointer, uint64_t* line_num) {
+Token* read_string_literal(FileInfo* source, char* pointer, uint64_t* line_num) {
     char* start = pointer;
     
-    char* end = L_FindStringEnd(pointer + 1);
+    char* end = find_string_end(pointer + 1);
     char* buffer = calloc(1, end - pointer);
     int buf_index = 0;
 
     char* p2 = pointer + 1;
     while (p2 < end) {
-        if (*p2 == '\\') buffer[buf_index++] = L_ReadEscapedCharacter(p2 + 1, &p2);
+        if (*p2 == '\\') buffer[buf_index++] = read_escaped_char(p2 + 1, &p2);
         else buffer[buf_index++] = *p2++; 
     }
 
-    Token* tok = L_NewToken(TOKEN_STRING_LITERAL, start, end + 1, source, *line_num);
+    Token* tok = new_token(TOKEN_STRING_LITERAL, start, end + 1, source, *line_num);
     tok->str_val = buffer;
     return tok;
 }
 
-uint8_t L_HexToInt(uint8_t hex_char) {
+uint8_t hex_to_int(uint8_t hex_char) {
     if ('0' <= hex_char && hex_char <= '9') return hex_char - '0';
     if ('a' <= hex_char && hex_char <= 'f') return hex_char - 'a' + 10;
     if ('A' <= hex_char && hex_char <= 'F') return hex_char - 'A' + 10;
     ERR_GENERAL("Unreachable");
 }
 
-Token* L_ReadCharacterLiteral(FileInfo* source, char* pointer, uint64_t* line_num) {
+Token* read_char_literal(FileInfo* source, char* pointer, uint64_t* line_num) {
     char* start_char = pointer + 1;
     if (*start_char == '\0' || *start_char == '\'') {
         ERR_GENERAL("Invalid or empty char literal at %p", start_char);
@@ -244,7 +244,7 @@ Token* L_ReadCharacterLiteral(FileInfo* source, char* pointer, uint64_t* line_nu
     char* next = start_char;
 
     if (*start_char == '\\') {
-        value = L_ReadEscapedCharacter(start_char + 1, &next);
+        value = read_escaped_char(start_char + 1, &next);
     }
     else {
         value = (unsigned char)(*start_char);
@@ -256,12 +256,12 @@ Token* L_ReadCharacterLiteral(FileInfo* source, char* pointer, uint64_t* line_nu
         ERR_GENERAL("Unclosed char literal at %p", next);
     }
 
-    Token* tok = L_NewToken(TOKEN_INT_LITERAL, pointer, end + 1, source, *line_num);
+    Token* tok = new_token(TOKEN_INT_LITERAL, pointer, end + 1, source, *line_num);
     tok->int_val = value;
     return tok;
 }
 
-TokenType L_GetIdentifierType(char* pointer, size_t len, Type* type, bool* is_unsigned) {
+TokenType get_identifier_type(char* pointer, size_t len, Type* type, bool* is_unsigned) {
     if (len == 2 && strncmp(pointer, "fn", 2) == 0) return TOKEN_KEYWORD_FUNCTION;
     if (len == 2 && strncmp(pointer, "if", 2) == 0) return TOKEN_KEYWORD_IF;
     if (len == 4 && strncmp(pointer, "else", 4) == 0) return TOKEN_KEYWORD_ELSE;
@@ -344,23 +344,18 @@ TokenType L_GetIdentifierType(char* pointer, size_t len, Type* type, bool* is_un
     return TOKEN_SYMBOL_IDENTIFIER;
 }
 
-bool L_IsLegalIdentiferStart(char c) {
-    return isalpha(c) || c == '_';
-}
+#define LEGAL_IDENTIFIER_START(c)       isalpha(c) || (c) == '_'
+#define LEGAL_IDENTIFIER_TAIL(c)        isalnum(c) || (c) == '_'
 
-bool L_IsLegalIdentiferTail(char c) {
-    return isalnum(c) || c == '_';
-}
-
-size_t L_ReadIdentifier(char *start) {
+size_t read_identifier(char *start) {
     char *pointer = start;
-    if (!L_IsLegalIdentiferStart(*pointer)) return 0;
+    if (!LEGAL_IDENTIFIER_START(*pointer)) return 0;
     pointer++;
-    while (L_IsLegalIdentiferTail(*pointer)) pointer++;
+    while (LEGAL_IDENTIFIER_TAIL(*pointer)) pointer++;
     return pointer - start;
 }
 
-Punctuator L_ReadPunctuator(char* start, char** end, size_t* length) {
+Punctuator read_punctuator(char* start, char** end, size_t* length) {
     size_t total_punctuators = sizeof(custom_punctuators) / sizeof(custom_punctuators[0]);
 
     for (size_t i = 0; i < total_punctuators; i++) {
@@ -375,7 +370,7 @@ Punctuator L_ReadPunctuator(char* start, char** end, size_t* length) {
     return PUNC_INVALID;
 }
 
-size_t L_GetTypeSize(Type* type) {
+size_t get_type_size(Type* type) {
     size_t total_types = sizeof(primitive_type_sizes) / sizeof(primitive_type_sizes[0]);
 
     for (size_t i = 0; i < total_types; i++)
@@ -386,7 +381,7 @@ size_t L_GetTypeSize(Type* type) {
     return 0;
 }
 
-Token* L_Tokenize(FileInfo* source) {
+Token* tokenize(FileInfo* source) {
     char* pointer = source->contents;
     // start from beginning of file
 
@@ -420,41 +415,41 @@ Token* L_Tokenize(FileInfo* source) {
 
         // check for numeric type token
         if (isdigit(*pointer) || (*pointer == '.' && isdigit(*(pointer + 1)))) {
-            cur = cur->next = L_ReadNumberLiteral(source, pointer, &line_num);
+            cur = cur->next = read_num_literal(source, pointer, &line_num);
             pointer += cur->length; // advance the pointer
             continue;
         }
 
         // string literal
         if (*pointer == '"') {
-            cur = cur->next = L_ReadStringLiteral(source, pointer, &line_num);
+            cur = cur->next = read_string_literal(source, pointer, &line_num);
             pointer += cur->length;
             continue;
         }
 
         // character literal
         if (*pointer == '\'') {
-            cur = cur->next = L_ReadCharacterLiteral(source, pointer, &line_num);
+            cur = cur->next = read_char_literal(source, pointer, &line_num);
             cur->int_val = (char)cur->int_val;
             pointer += cur->length;
             continue;
         }
 
         // identifiers or keywords
-        size_t identifier_len = L_ReadIdentifier(pointer);
+        size_t identifier_len = read_identifier(pointer);
         if (identifier_len > 0) {
             Type primitive_type = 0;
             bool is_unsigned = false;
 
-            TokenType token_type = L_GetIdentifierType(pointer, identifier_len, &primitive_type, &is_unsigned);
+            TokenType token_type = get_identifier_type(pointer, identifier_len, &primitive_type, &is_unsigned);
 
-            Token* new_tok = L_NewToken(token_type, pointer, pointer + (int)identifier_len, source, line_num);
+            Token* new_tok = new_token(token_type, pointer, pointer + (int)identifier_len, source, line_num);
 
             if (token_type == TOKEN_PRIMITIVE_TYPE_SPECIFIER) {
                 new_tok->typeinfo = calloc(1, sizeof(TypeInfo));
                 new_tok->typeinfo->is_unsigned = is_unsigned;
                 new_tok->typeinfo->type = primitive_type;
-                new_tok->typeinfo->size = L_GetTypeSize(&primitive_type);
+                new_tok->typeinfo->size = get_type_size(&primitive_type);
 
                 char* peek = pointer + identifier_len;
 
@@ -484,9 +479,9 @@ Token* L_Tokenize(FileInfo* source) {
 
         // punctuators
         size_t punctuator_len = 0;
-        Punctuator punc_type = L_ReadPunctuator(pointer, &pointer, &punctuator_len);
+        Punctuator punc_type = read_punctuator(pointer, &pointer, &punctuator_len);
         if (punc_type != PUNC_INVALID && punctuator_len != 0) {
-            Token* new_tok = L_NewToken(TOKEN_PUNCTUATOR, pointer - (int)punctuator_len, pointer, source, line_num);
+            Token* new_tok = new_token(TOKEN_PUNCTUATOR, pointer - (int)punctuator_len, pointer, source, line_num);
             new_tok->punc_type = punc_type;
             cur = cur->next = new_tok;
             continue;
@@ -495,20 +490,20 @@ Token* L_Tokenize(FileInfo* source) {
         ERR_GENERAL("Invalid token at %p (character '%c')", pointer, *pointer);
     }
 
-    cur = cur->next = L_NewToken(TOKEN_EOF, pointer, pointer, source, line_num);
+    cur = cur->next = new_token(TOKEN_EOF, pointer, pointer, source, line_num);
     return head.next;
 }
 
-Token* L_TokenizeFile(char* filepath) {
+Token* tokenize_file(char* filepath) {
     FileInfo* info = F_NewFileInfo(filepath);
     if (!info) {
         ERR_GENERAL("Failed to tokenize file.");
         return NULL;
     }
-    return L_Tokenize(info);
+    return tokenize(info);
 }
 
-size_t L_TokensCount(Token *head) {
+size_t get_token_count(Token *head) {
 	size_t count = 0;
 	Token *current = head;
 	while (current != NULL) {

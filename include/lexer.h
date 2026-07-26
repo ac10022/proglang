@@ -135,23 +135,21 @@ struct Token {
     uint16_t length;        // length of token (as a string)
 };
 
-Token *L_NewToken(TokenType token_type, char *start_pointer, char *end_pointer, FileInfo *source, uint64_t line_number);
+Token *new_token(TokenType token_type, char *start_pointer, char *end_pointer, FileInfo *source, uint64_t line_number);
 
-Token *L_ReadNumberLiteral(FileInfo *source, char *pointer, uint64_t *line_num);
+Token *read_num_literal(FileInfo *source, char *pointer, uint64_t *line_num);
 
-Token* L_ReadStringLiteral(FileInfo* source, char* pointer, uint64_t* line_num);
-char* L_FindStringEnd(char* pointer);
-uint8_t L_HexToInt(uint8_t hex_char);
-Token *L_ReadCharacterLiteral(FileInfo *source, char *pointer, uint64_t *line_num);
-uint64_t L_ReadEscapedCharacter(char* pointer, char** end);
+Token* read_string_literal(FileInfo* source, char* pointer, uint64_t* line_num);
+char* find_string_end(char* pointer);
+uint8_t hex_to_int(uint8_t hex_char);
+Token *read_char_literal(FileInfo *source, char *pointer, uint64_t *line_num);
+uint64_t read_escaped_char(char* pointer, char** end);
 
-bool L_IsLegalIdentiferStart(char c);
-bool L_IsLegalIdentiferTail(char c);
-size_t L_ReadIdentifier(char *start);
+size_t read_identifier(char *start);
 
-Token *L_Tokenize(FileInfo *source);
-Token *L_TokenizeFile(char *filepath);
-size_t L_TokensCount(Token *head);
+Token *tokenize(FileInfo *source);
+Token *tokenize_file(char *filepath);
+size_t get_token_count(Token *head);
 
 #ifdef DEBUG
 const char *punc_to_str(Punctuator punc);
