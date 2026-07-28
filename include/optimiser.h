@@ -103,16 +103,18 @@ typedef struct {
                                     // so that we always have a unique identifier for a label
 } OptimiserContext;
 
+IRInstruction* ast_to_ir(ASTNode* root);
+void lower(OptimiserContext* ctx, ASTNode* node);
+void optimise(OptimiserContext* ctx);
+
 IROperation node_to_irop(NodeType type);
 void initialise_optim_context(OptimiserContext* ctx);
 void push_instruction(OptimiserContext* ctx, IRInstruction* instruction);
 void emit(OptimiserContext* ctx, IROperation op, IROperand d, IROperand src1, IROperand src2);
-IRInstruction* ast_to_ir(ASTNode* root);
 
 IROperand new_temp(OptimiserContext* ctx);
 IROperand new_label(OptimiserContext* ctx);
 
-void lower(OptimiserContext* ctx, ASTNode* node);
 IROperand lower_expr(OptimiserContext* ctx, ASTNode* node);
 
 #ifdef DEBUG

@@ -1,6 +1,30 @@
 #include "optimiser.h"
 #include "base.h"
 
+/*
+ * Main entry point of the OPTIMISER component; accepts an AST from the parser (the head) and returns a linked list of IR instructions.
+ */
+IRInstruction* ast_to_ir(ASTNode* root) {
+    if (!root) ERR_GENERAL("Invalid AST provided for IR parsing");
+
+    OptimiserContext o_ctx = {};
+    initialise_optim_context(&o_ctx);
+
+    // stage 1: lowering
+    for (ASTNode* statement = root; statement != NULL; statement = statement->next) {
+        lower(&o_ctx, statement);
+    }
+    emit(&o_ctx, IR_HALT, IROPERAND_EMPTY, IROPERAND_EMPTY, IROPERAND_EMPTY);
+
+    // stage 2: optimising
+    optimise(&o_ctx);
+
+    return o_ctx.instructions;
+}
+
+/*
+ * Helper function to convert between NodeType and IROperation
+ */
 IROperation node_to_irop(NodeType type) {
     switch (type) {
         case NODE_ADD:          return IR_ADD;
@@ -39,12 +63,18 @@ IROperation node_to_irop(NodeType type) {
     return (IROperation){0}; // here to shut up compiler
 }
 
+/*
+ * Initialise all fields of an OptimiserContext object to default values once it has been allocated on the stack.
+ */
 void initialise_optim_context(OptimiserContext* ctx) {
     ctx->instructions = NULL;
     ctx->temp_var_index = (size_t)0;
     ctx->label_index = (size_t)0;
 }
 
+/*
+ * Pushes an instruction onto the end of the context's instruction list.
+ */
 void push_instruction(OptimiserContext* ctx, IRInstruction* instruction) {
     if (!instruction) return;
     
@@ -60,6 +90,10 @@ void push_instruction(OptimiserContext* ctx, IRInstruction* instruction) {
     }
 }
 
+/*
+ * Create an IR instruction and push it to the end of the context's instruction list.
+ * The instruction will be of the form: d = [src1] <op> [src2]
+ */
 void emit(
     OptimiserContext* ctx, 
     IROperation op,
@@ -78,28 +112,18 @@ void emit(
     push_instruction(ctx, instruction);
 }
 
-IRInstruction* ast_to_ir(ASTNode* root) {
-    if (!root) ERR_GENERAL("Invalid AST provided for IR parsing");
-
-    OptimiserContext o_ctx = {};
-    initialise_optim_context(&o_ctx);
-
-    for (ASTNode* statement = root; statement != NULL; statement = statement->next) {
-        lower(&o_ctx, statement);
-    }
-
-    emit(&o_ctx, IR_HALT, IROPERAND_EMPTY, IROPERAND_EMPTY, IROPERAND_EMPTY);
-    return o_ctx.instructions;
-}
-
 /*
  * the first stage is to convert ast -> ir, this process is called lowering
- * what is happening here, is we are just traversing the tree and calling lower on every node
+ * what is happening here, is we are just traversing the tree and calling lower on every node, then lowering subnodes in recursive descent
  * every time there is an instruction which we should keep, then we emit it (emit()) to the ir linked list of instructions
  * 
  * for now, we do not do any optimisation while we finish the lowering process
  */
 
+/*
+ * Recursively lower the AST into an IR instruction linked list (held in the OptimiserContext object)
+ * This function accounts for statements, e.g., 'for', 'while', if instead we have a expression, we fall through to lower_expr.
+ */
 void lower(OptimiserContext* ctx, ASTNode* node) {
     if (!ctx) return;
     if (!node) return;
@@ -223,6 +247,9 @@ void lower(OptimiserContext* ctx, ASTNode* node) {
     }
 }
 
+/*
+ * Create a new IR temporary variable (in DEBUG, a temp variable has the notation $t).
+ */
 IROperand new_temp(OptimiserContext* ctx) {
     IROperand op = (IROperand) {
         .type = IROP_TEMP,
@@ -232,6 +259,9 @@ IROperand new_temp(OptimiserContext* ctx) {
     return op;
 }
 
+/*
+ * Create a new IR label, which we can jump to using IR_JUMP or any alternatives (in DEBUG, a label has the notation $l).
+ */
 IROperand new_label(OptimiserContext* ctx) {
     IROperand op = (IROperand) {
         .type = IROP_LABEL,
@@ -241,8 +271,10 @@ IROperand new_label(OptimiserContext* ctx) {
     return op;
 }
 
+/*
+ * Recursively lowers any expression type node and emits into the IR instruction linked list (held in the OptimiserContext object).
+ */
 IROperand lower_expr(OptimiserContext* ctx, ASTNode* node) {
-    // printf("%s\n", node_to_str(node->node_type));
     switch (node->node_type) {
         case NODE_LITERAL_INT: 
             return (IROperand){
@@ -418,6 +450,39 @@ IROperand lower_expr(OptimiserContext* ctx, ASTNode* node) {
     }
 
     return IROPERAND_EMPTY; // here to shut up compiler
+}
+
+/*
+ * the second stage of the optimiser is the actual optimisation, so we go through the IR and pattern match on typical inefficient patterns
+ *
+ * what we should look for here: 
+ *  
+ *  *   loop invariant code, where we have statements in loops which may not change after a set amount of loops, e.g.,
+ *          b8 bool = false
+ *          for (u32 i in 1..10) {
+ *              bool = true // <--- does not need to be in the loop
+ *          }
+ * 
+ *  *   constants which can be evaluated directly e.g,
+ *          u32 t = 60 * 60 * 24
+ *      
+ *  *   strength reduction, replacing expensive operations with cheaper ones e.g.,
+ *          u32 i = 2 * 16   <===>   u32 i = 2 << 4
+ *  
+ *  *   dead code elimination, unused temp varaibles, labels which are not jumped to, statements which do not change the state of the program, e.g.,
+ *          u32 i = 10;
+ *          i = 10; // <--- redundant 
+ * 
+ *  *   common expressions, expressions which have already been evaluated and can be reused, e.g.,
+ *          u32 t = 60 * 60 * 24
+ *          u32 t2 = 60 * 60 * 24   <===>   u32 t2 = t 
+ */
+
+/*
+ * Loop through the context's IR linked list, and greedily look for optimisations.  
+ */
+void optimise(OptimiserContext* ctx) {
+    return;
 }
 
 #ifdef DEBUG

@@ -3,6 +3,9 @@
 #include "../include/file.h"
 #include "../include/base.h"
 
+/*
+ * Open and read a file from filepath, output its contents into a buffer of MAX_BUFFER_LENGTH
+ */
 char *F_ReadFile(char* filepath) {
     FILE *file = fopen(filepath, "r");
     if (!file) {
@@ -32,6 +35,9 @@ char *F_ReadFile(char* filepath) {
     return buf;
 }
 
+/*
+ * Open and read a file from filepath, and return its data in a dynamically allocated FileInfo object.
+ */
 FileInfo *F_NewFileInfo(char *filepath) {
     char *contents = F_ReadFile(filepath);
     if (contents == NULL) return NULL;
