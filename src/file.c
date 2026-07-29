@@ -1,12 +1,14 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdbool.h>
+
 #include "../include/file.h"
 #include "../include/base.h"
 
 /*
  * Open and read a file from filepath, output its contents into a buffer of MAX_BUFFER_LENGTH
  */
-char *F_ReadFile(char* filepath) {
+char *read_file(char* filepath) {
     FILE *file = fopen(filepath, "r");
     if (!file) {
         ERR_GENERAL("Failed to read file.");
@@ -38,8 +40,8 @@ char *F_ReadFile(char* filepath) {
 /*
  * Open and read a file from filepath, and return its data in a dynamically allocated FileInfo object.
  */
-FileInfo *F_NewFileInfo(char *filepath) {
-    char *contents = F_ReadFile(filepath);
+FileInfo *new_fileinfo(char *filepath) {
+    char *contents = read_file(filepath);
     if (contents == NULL) return NULL;
 
     FileInfo *info = calloc(1, sizeof(FileInfo));
@@ -52,4 +54,17 @@ FileInfo *F_NewFileInfo(char *filepath) {
     info->filepath = filepath;
 
     return info;
+}
+
+/*
+ * Helper function to check if a file exists and we have access to it.
+ */
+bool check_file_exists(char* filepath) {
+    if (!filepath) return false;
+    
+    FILE* file = fopen(filepath, "r");
+    if (file) {
+        fclose(file); return true;
+    }
+    return false;
 }

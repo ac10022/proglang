@@ -6,7 +6,8 @@ typedef struct {
     char *contents;
 } FileInfo;
 
-FileInfo* F_NewFileInfo(char* filepath);
-char *F_ReadFile(char* filepath);
+FileInfo* new_fileinfo(char* filepath);
+char *read_file(char* filepath);
+bool check_file_exists(char* filepath);
 
 #endif

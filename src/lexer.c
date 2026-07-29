@@ -495,7 +495,7 @@ Token* tokenize(FileInfo* source) {
 }
 
 Token* tokenize_file(char* filepath) {
-    FileInfo* info = F_NewFileInfo(filepath);
+    FileInfo* info = new_fileinfo(filepath);
     if (!info) {
         ERR_GENERAL("Failed to tokenize file.");
         return NULL;

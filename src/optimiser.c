@@ -4,7 +4,7 @@
 /*
  * Main entry point of the OPTIMISER component; accepts an AST from the parser (the head) and returns a linked list of IR instructions.
  */
-IRInstruction* ast_to_ir(ASTNode* root) {
+IRInstruction* ast_to_ir(ASTNode* root, CompilerContext* c_ctx) {
     if (!root) ERR_GENERAL("Invalid AST provided for IR parsing");
 
     OptimiserContext o_ctx = {};
@@ -17,7 +17,9 @@ IRInstruction* ast_to_ir(ASTNode* root) {
     emit(&o_ctx, IR_HALT, IROPERAND_EMPTY, IROPERAND_EMPTY, IROPERAND_EMPTY);
 
     // stage 2: optimising
-    optimise(&o_ctx);
+    if (c_ctx->flags & CF_USE_OPTIMISATIONS) {
+        optimise(&o_ctx);
+    }
 
     return o_ctx.instructions;
 }

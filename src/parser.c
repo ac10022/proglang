@@ -1011,17 +1011,28 @@ ASTNode* parse_postfix(ParserContext* ctx) {
 ASTNode* parse_else(ParserContext* ctx) {
 	switch (ctx->cur_token->token_type) {
 		case TOKEN_PUNCTUATOR: {
-			if (ctx->cur_token->punc_type != PUNC_OPEN_PAREN) break;
-			advance_token(ctx);
-			ASTNode* subexpr = parse_expression(ctx);
+			switch (ctx->cur_token->punc_type) {
+				case PUNC_OPEN_PAREN: {
+					advance_token(ctx);
+					ASTNode* subexpr = parse_expression(ctx);
 
-			if (	ctx->cur_token->token_type != TOKEN_PUNCTUATOR 
-				|| 	ctx->cur_token->punc_type != PUNC_CLOSE_PAREN	) {
-				ERR_SYNTAX(ctx->cur_token, /* expected a */ "closed expression, closed by ')'" );
+					if (	ctx->cur_token->token_type != TOKEN_PUNCTUATOR 
+						|| 	ctx->cur_token->punc_type != PUNC_CLOSE_PAREN	) {
+						ERR_SYNTAX(ctx->cur_token, /* expected a */ "closed expression, closed by ')'" );
+					}
+					
+					advance_token(ctx);
+					return subexpr;
+				}
+
+				// the only reason you would get here is if you did something like x += y = 5
+				// this operation doesn't really make sense
+				case PUNC_ASSIGNMENT: ERR_SYNTAX(ctx->cur_token, /* expected a */ "non-assignment expression after a compound assignment operator" );
+				
+				default: break;
 			}
-			
-			advance_token(ctx);
-			return subexpr;
+
+			break;
 		}
 
 		case TOKEN_STRING_LITERAL: {

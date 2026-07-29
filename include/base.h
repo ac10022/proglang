@@ -3,8 +3,25 @@
 
 #include <assert.h>
 #include <stdio.h>
+#include <stdint.h>
 
-// use this header file for constants or macros across different parts of the project
+/*
+ * DATA TYPES
+ */
+
+typedef struct {
+	uint64_t flags;
+	char *filepath;
+	char *outpath;
+} CompilerContext;
+
+enum {
+	CF_GENERATE_ASSEMBLY 	= (1ULL << 0),
+	CF_USE_OPTIMISATIONS 	= (1ULL << 1),
+
+    CF_AST_TRACE            = (1ULL << 62),
+    CF_IR_TRACE             = (1ULL << 63),
+};
 
 /*
  * CONSTANTS

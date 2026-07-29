@@ -103,7 +103,7 @@ typedef struct {
                                     // so that we always have a unique identifier for a label
 } OptimiserContext;
 
-IRInstruction* ast_to_ir(ASTNode* root);
+IRInstruction* ast_to_ir(ASTNode* root, CompilerContext* c_ctx);
 void lower(OptimiserContext* ctx, ASTNode* node);
 void optimise(OptimiserContext* ctx);
 

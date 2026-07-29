@@ -6,5 +6,6 @@
 #include "lexer.h"
 #include "parser.h"
 #include "optimiser.h"
+#include "base.h"
 
 #endif
