@@ -19,6 +19,7 @@ enum {
 	CF_GENERATE_ASSEMBLY 	= (1ULL << 0),
 	CF_USE_OPTIMISATIONS 	= (1ULL << 1),
 
+    // DEBUG only command flags
     CF_AST_TRACE            = (1ULL << 62),
     CF_IR_TRACE             = (1ULL << 63),
 };

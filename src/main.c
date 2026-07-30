@@ -6,6 +6,7 @@ extern int optind; // optind from unistd
 /*
  * TODO:
  *	* option to specify outpath name
+ *	* aggregate errors; so instead of just stopping compilation as soon as we see one error, we try take compilation as far as possible, then error with all the problems we found
  *	* move IR output to codegen
  *	* output codegen output to assembler if CF_GENERATE_ASSEMBLY is not enabled
  */
