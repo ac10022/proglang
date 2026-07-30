@@ -119,8 +119,8 @@ ASTNode *new_node_general(NodeType type, Token* tok) {
 //		main_scope.symbols_head 	= [main_scope_var, main_scope_var2]
 //		block1_scope.symbols_head 	= [nested_scope_var]
 
-// so in main, i could use any of intersection([main_scope_var, main_scope_var2], [global_int_var])
-// and in block1, i could use any of intersection([main_scope_var, main_scope_var2], [global_int_var], [nested_scope_var])
+// so in main, i could use any of union([main_scope_var, main_scope_var2], [global_int_var])
+// and in block1, i could use any of union([main_scope_var, main_scope_var2], [global_int_var], [nested_scope_var])
 // but in main, i could NOT use nested_scope_var because i have no access to it
 
 Symbol *new_symbol(ParserContext *ctx, char *sym_identifier, TypeInfo* typeinfo) {
@@ -278,6 +278,12 @@ bool is_token_type(Token *token, TokenType token_type) {
 	return false;
 }
 
+/*
+ * Parses an if statement.
+ * Returns a NODE_IF node, the condition is stored in the ASTNode's condition field.
+ * If the condition succeeds, the NODE_BLOCK, containing all the statements to perform is stored in the ASTNode's on_condition_success field.
+ * If the condition fails and this if statement had an ELSE clause, the NODE_BLOCK, containing all the statements to perform is stored in the ASTNode's on_condition_failure field. Otherwise on_condition_failure is NULL'ed.
+ */
 ASTNode *parse_if_statement(ParserContext *ctx) {
 	assert(ctx->cur_token->token_type == TOKEN_KEYWORD_IF);
 	ASTNode* if_stmt = new_node_general(NODE_IF, ctx->cur_token);
@@ -317,6 +323,11 @@ ASTNode *parse_if_statement(ParserContext *ctx) {
 	return if_stmt;
 }
 
+/*
+ * Parses a while statement.
+ * Returns a NODE_FOR node, the ASTNode's initial and increment fields are NULL'ed, the condition step is stored in the condition field. 
+ * The NODE_BLOCK, containing all the statements to perform during the loop is stored in the ASTNode's body field.
+ */
 ASTNode *parse_while_statement(ParserContext *ctx) {
 	assert(ctx->cur_token->token_type == TOKEN_KEYWORD_WHILE);
 	ASTNode* while_stmt = new_node_general(NODE_FOR, ctx->cur_token);
@@ -341,6 +352,14 @@ ASTNode *parse_while_statement(ParserContext *ctx) {
 	return while_stmt;
 }
 
+/*
+ * Parses a for statement.
+ * A for statement can come in two forms:
+ * 		for (...; ...; ...) 	or 		for (... in []..[])
+ * This function accounts for both of them.
+ * Returns a NODE_FOR node, the init step is stored in the ASTNode's initial field, the condition step is stored in the condition field, and the increment step is stored in increment field. 
+ * The NODE_BLOCK, containing all the statements to perform during the loop is stored in the ASTNode's body field.
+ */
 ASTNode *parse_for_statement(ParserContext *ctx) {
 	assert(ctx->cur_token->token_type == TOKEN_KEYWORD_FOR);
 	ASTNode* for_stmt = new_node_general(NODE_FOR, ctx->cur_token);
@@ -356,8 +375,8 @@ ASTNode *parse_for_statement(ParserContext *ctx) {
 	set_new_scope(ctx);
 
 	bool need_semicolon = false;
-	bool declared = false;
-	bool shorthand_for = false;
+	bool declared = false;			// dictates whether the variable in the init step is already declared (e.g., for (i = 0; ...; ...)) or not already declared (e.g., for (i32 i = 0; ...; ...))
+	bool shorthand_for = false;		// dictates whether we are using normal for (i.e. for(;;)) or shorthand for (i.e. for (i32 i in a..b)) 
 
 	// general for (i32 i = 0; ...; ...) case or similar
 	// i.e. defining a variable in the init step of the for clause
@@ -502,6 +521,9 @@ ASTNode *parse_for_statement(ParserContext *ctx) {
 	
 }
 
+/*
+ * Create a new child scope off the current scope and set the context's scope to this new one.
+ */
 Scope *set_new_scope(ParserContext *ctx) {
 	Scope *new_scope = calloc(1, sizeof(Scope));
 	new_scope->parent = ctx->cur_scope;
@@ -511,11 +533,24 @@ Scope *set_new_scope(ParserContext *ctx) {
 	return new_scope;
 }
 
+/*
+ * Exit the current scope and move to parent scope.
+ */
 Scope *exit_scope(ParserContext *ctx) {
+	// how would you get here? idk but better be safe
+	if (ctx->cur_scope->scope_depth == SCOPE_GLOBAL_DEPTH) {
+		ERR_GENERAL("Cannot exit global scope.");
+	}
+
 	ctx->cur_scope = ctx->cur_scope->parent;
 	return ctx->cur_scope;
 }
 
+/*
+ * Parses a block. A block is any code which is surrounded by { ... }.
+ * Returns a NODE_BLOCK node, with all substatements stored as a linked list in the ASTNode's body field.
+ * This function also deals with scopes automatically. A new scope is created for each block, and left once the block finishes.
+ */
 ASTNode *parse_block(ParserContext *ctx) {
 	if (	ctx->cur_token->token_type != TOKEN_PUNCTUATOR 
 		|| 	ctx->cur_token->punc_type != PUNC_OPEN_CURLY	) {
@@ -555,6 +590,10 @@ ASTNode *parse_return_statement(ParserContext *ctx) {
 	return NULL;
 }
 
+/*
+ * Parses an expression statement, i.e. any expression followed by a semicolon.
+ * Returns a NODE_EXPR_STMT node, with the expression stored in the ASTNode's l_value field.
+ */
 ASTNode *parse_expr_statement(ParserContext *ctx) {
 	Token* ref = ctx->cur_token;
 	ASTNode* expr = parse_expression(ctx);
@@ -577,6 +616,9 @@ ASTNode *parse_expr_statement(ParserContext *ctx) {
 // Assignment	                        =, +=, -=, *=, /=	    x = y + 2
 // Logical OR	                        ||	                    a || b
 // Logical AND	                        &&	                    a && b
+// Bitwise OR							|
+// Bitwise XOR							^
+// Bitwise AND							&
 // Equality	                            ==, !=	                status == 200
 // Comparison	                        <, >, <=, >=	        age >= 18
 // Bitwise Shift						<<, >>					x << 2
@@ -589,6 +631,9 @@ ASTNode *parse_expr_statement(ParserContext *ctx) {
 
 // i was looking up shunting yard, but apparently for an AST the easiest way to parse expressions is descent parsing
 
+/*
+ * Parses an expression using recursive descent, and returns the subtree the expression generates. See operator presedence.
+ */
 ASTNode *parse_expression(ParserContext *ctx) {
 	return parse_variable_assignment(ctx);
 }
