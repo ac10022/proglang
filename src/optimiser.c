@@ -2,6 +2,13 @@
 #include "base.h"
 
 /*
+ * TODO:
+ *  * lower functions, return statements, struct members etc.
+ *  * optimiser (see below)
+ *  * work out how the fuck scope works in asm
+ */
+
+/*
  * Main entry point of the OPTIMISER component; accepts an AST from the parser (the head) and returns a linked list of IR instructions.
  */
 IRInstruction* ast_to_ir(ASTNode* root, CompilerContext* c_ctx) {

@@ -3,6 +3,13 @@
 #include <unistd.h>
 extern int optind; // optind from unistd
 
+/*
+ * TODO:
+ *	* option to specify outpath name
+ *	* move IR output to codegen
+ *	* output codegen output to assembler if CF_GENERATE_ASSEMBLY is not enabled
+ */
+
 void initialise_compiler_context(CompilerContext* ctx) {
 	if (!ctx) return;
 	ctx->flags = (uint64_t)0;

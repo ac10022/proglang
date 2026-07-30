@@ -4,6 +4,12 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+/*
+ * TODO:
+ *	* function parsing
+ *	* return statement parsing
+ */
+
 // the parser context is just a struct we use to encapsulate all the information the parser might need, without having to declare multiple global variables, which is bad practice
 
 // you can check parser.h to see what exactly we use the parser context for but to put it simply, it just exists so that each function doesnt have to take loads of parameters:
