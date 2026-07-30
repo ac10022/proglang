@@ -72,6 +72,7 @@ int main(int argc, char *argv[]) {
 		}
 	}
 
+	assert(optind >= 0);
 	if (optind >= argc) {
         fprintf(stderr, "Usage: proglang <source file> [options: see -h]\n");
         ERR_GENERAL("No input file provided.");

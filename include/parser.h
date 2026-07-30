@@ -39,7 +39,7 @@ typedef struct {
 
 void initialise_parser_context(ParserContext *ctx, Token* head);
 void advance_token(ParserContext *ctx);
-void initalise_global_scope(ParserContext *ctx);
+void initialise_global_scope(ParserContext *ctx);
 
 ASTNode *generate_ast(Token *head);
 

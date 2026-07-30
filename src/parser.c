@@ -20,21 +20,27 @@ void initialise_parser_context(ParserContext *ctx, Token* head) {
 	ctx->variable_counter = 0;
 #endif 
 
-	initalise_global_scope(ctx);
+	initialise_global_scope(ctx);
 }
 
-void advance_token(ParserContext *ctx) {
-	if (ctx->cur_token->token_type == TOKEN_EOF) return;
-	ctx->cur_token = ctx->cur_token->next;
-}
-
-void initalise_global_scope(ParserContext *ctx) {
+void initialise_global_scope(ParserContext *ctx) {
 	ctx->cur_scope = calloc(1, sizeof(Scope));
 	ctx->cur_scope->parent = NULL; // global scope is the top of the chain
 	ctx->cur_scope->scope_depth = SCOPE_GLOBAL_DEPTH;
 	ctx->cur_scope->symbols_head = NULL;
 }
 
+/*
+ * Helper function to advance the token the context is looking at.
+ */
+void advance_token(ParserContext *ctx) {
+	if (ctx->cur_token->token_type == TOKEN_EOF) return;
+	ctx->cur_token = ctx->cur_token->next;
+}
+
+/*
+ * Main entry point of the PARSER component; accepts a Token linked list from the lexer and returns the corresponding AST, whilst checking for syntax.
+ */
 ASTNode *generate_ast(Token *head) {
 	ParserContext ctx = {};
 	initialise_parser_context(&ctx, head);
@@ -62,6 +68,38 @@ ASTNode *new_node_general(NodeType type, Token* tok) {
 	ASTNode* new_node = calloc(1, sizeof(ASTNode));
 	new_node->node_type = type;
 	new_node->token = tok;
+	return new_node;
+}
+
+ASTNode* new_node_binary(NodeType type, ASTNode* l_value, ASTNode* r_value, Token* tok) {
+	ASTNode* new_node = calloc(1, sizeof(ASTNode));
+	new_node->l_value = l_value;
+	new_node->r_value = r_value;
+	new_node->node_type = type;
+	new_node->token = tok;
+	return new_node;
+}
+
+ASTNode* new_node_unary(NodeType type, ASTNode* unary_val, Token* tok) {
+	ASTNode* new_node = calloc(1, sizeof(ASTNode));
+	new_node->r_value = unary_val;
+	new_node->node_type = type;
+	new_node->l_value = NULL;
+	new_node->token = tok;
+	return new_node;
+}
+
+ASTNode* new_node_memidentifier(ASTNode* l_value, char* identifier, Token* tok) {
+	ASTNode* new_node = calloc(1, sizeof(ASTNode));
+	new_node->l_value = l_value;
+	new_node->node_type = NODE_MEMBER;
+	new_node->r_value = NULL;
+	new_node->token = tok;
+	
+	Symbol* mem_sym = calloc(1, sizeof(Symbol));
+	mem_sym->name = identifier;
+	new_node->variable_symbol = mem_sym;
+
 	return new_node;
 }
 
@@ -123,6 +161,31 @@ ASTNode *new_node_general(NodeType type, Token* tok) {
 // and in block1, i could use any of union([main_scope_var, main_scope_var2], [global_int_var], [nested_scope_var])
 // but in main, i could NOT use nested_scope_var because i have no access to it
 
+/*
+ * Create a new child scope off the current scope and set the context's scope to this new one.
+ */
+Scope *set_new_scope(ParserContext *ctx) {
+	Scope *new_scope = calloc(1, sizeof(Scope));
+	new_scope->parent = ctx->cur_scope;
+	new_scope->scope_depth = ctx->cur_scope->scope_depth + 1;
+	ctx->cur_scope = new_scope;
+
+	return new_scope;
+}
+
+/*
+ * Exit the current scope and move to parent scope.
+ */
+Scope *exit_scope(ParserContext *ctx) {
+	// how would you get here? idk but better be safe
+	if (ctx->cur_scope->scope_depth == SCOPE_GLOBAL_DEPTH) {
+		ERR_GENERAL("Cannot exit global scope.");
+	}
+
+	ctx->cur_scope = ctx->cur_scope->parent;
+	return ctx->cur_scope;
+}
+
 Symbol *new_symbol(ParserContext *ctx, char *sym_identifier, TypeInfo* typeinfo) {
 	// check symbol does not already exist
 	if (symbol_lookup(ctx->cur_scope, sym_identifier) != NULL) {
@@ -151,7 +214,9 @@ Symbol *new_symbol(ParserContext *ctx, char *sym_identifier, TypeInfo* typeinfo)
 	return new_symbol;
 }
 
-// helper function to match variable names to their corresponding symbols in the scope
+/*
+ * Helper function to match variable names to their corresponding symbols in the scope, returns the symbol the variable name is referencing in this scope if found, otherwise returns NULL.
+ */
 Symbol *symbol_lookup(Scope *scope, char *sym_name) {
 	assert(scope != NULL);
 
@@ -169,6 +234,43 @@ Symbol *symbol_lookup(Scope *scope, char *sym_name) {
 	}
 
 	return NULL;
+}
+
+ASTNode *parse_statement(ParserContext *ctx) {
+#ifdef DEBUG
+	printf("parsing statement\n");
+	printf("%s\n", token_type_to_str(ctx->cur_token));
+	DEBUG_TOKEN_STR(ctx->cur_token);
+#endif
+	switch (ctx->cur_token->token_type) {
+		case TOKEN_KEYWORD_FUNCTION:
+			// defining a function
+			TODO("parse function"); // just to stop compiler getting stuck in infinite loop
+			return parse_function(ctx);
+		case TOKEN_PRIMITIVE_TYPE_SPECIFIER:
+#ifdef DEBUG
+			printf("hit?\n");
+#endif
+			return parse_variable_declaration(ctx, true, NULL);
+		case TOKEN_KEYWORD_IF:
+			return parse_if_statement(ctx);
+		case TOKEN_KEYWORD_WHILE:
+			return parse_while_statement(ctx);
+		case TOKEN_KEYWORD_FOR:
+			return parse_for_statement(ctx);
+		case TOKEN_KEYWORD_RETURN:
+			return parse_return_statement(ctx);
+		case TOKEN_PUNCTUATOR:
+			if (ctx->cur_token->punc_type == PUNC_OPEN_CURLY) return parse_block(ctx);
+			TODO("how did you even call parse_statement on a punctuator?");
+			return NULL;
+		case TOKEN_SYMBOL_IDENTIFIER:
+			// calling a function, or assigning a variable
+			return parse_expr_statement(ctx);
+		default:
+			fprintf(stderr, "Syntax Error: Unknown statement token\n");
+            exit(1);
+	}
 }
 
 ASTNode *parse_variable_declaration(ParserContext *ctx, bool expect_semicolon, bool* declared) {
@@ -223,43 +325,6 @@ ASTNode *parse_variable_declaration(ParserContext *ctx, bool expect_semicolon, b
 
 ASTNode *parse_function(ParserContext *ctx) {
 	return NULL;
-}
-
-ASTNode *parse_statement(ParserContext *ctx) {
-#ifdef DEBUG
-	printf("parsing statement\n");
-	printf("%s\n", token_type_to_str(ctx->cur_token));
-	DEBUG_TOKEN_STR(ctx->cur_token);
-#endif
-	switch (ctx->cur_token->token_type) {
-		case TOKEN_KEYWORD_FUNCTION:
-			// defining a function
-			TODO("parse function"); // just to stop compiler getting stuck in infinite loop
-			return parse_function(ctx);
-		case TOKEN_PRIMITIVE_TYPE_SPECIFIER:
-#ifdef DEBUG
-			printf("hit?\n");
-#endif
-			return parse_variable_declaration(ctx, true, NULL);
-		case TOKEN_KEYWORD_IF:
-			return parse_if_statement(ctx);
-		case TOKEN_KEYWORD_WHILE:
-			return parse_while_statement(ctx);
-		case TOKEN_KEYWORD_FOR:
-			return parse_for_statement(ctx);
-		case TOKEN_KEYWORD_RETURN:
-			return parse_return_statement(ctx);
-		case TOKEN_PUNCTUATOR:
-			if (ctx->cur_token->punc_type == PUNC_OPEN_CURLY) return parse_block(ctx);
-			TODO("how did you even call parse_statement on a punctuator?");
-			return NULL;
-		case TOKEN_SYMBOL_IDENTIFIER:
-			// calling a function, or assigning a variable
-			return parse_expr_statement(ctx);
-		default:
-			fprintf(stderr, "Syntax Error: Unknown statement token\n");
-            exit(1);
-	}
 }
 
 bool equal(Token *token, char *op) {
@@ -522,31 +587,6 @@ ASTNode *parse_for_statement(ParserContext *ctx) {
 }
 
 /*
- * Create a new child scope off the current scope and set the context's scope to this new one.
- */
-Scope *set_new_scope(ParserContext *ctx) {
-	Scope *new_scope = calloc(1, sizeof(Scope));
-	new_scope->parent = ctx->cur_scope;
-	new_scope->scope_depth = ctx->cur_scope->scope_depth + 1;
-	ctx->cur_scope = new_scope;
-
-	return new_scope;
-}
-
-/*
- * Exit the current scope and move to parent scope.
- */
-Scope *exit_scope(ParserContext *ctx) {
-	// how would you get here? idk but better be safe
-	if (ctx->cur_scope->scope_depth == SCOPE_GLOBAL_DEPTH) {
-		ERR_GENERAL("Cannot exit global scope.");
-	}
-
-	ctx->cur_scope = ctx->cur_scope->parent;
-	return ctx->cur_scope;
-}
-
-/*
  * Parses a block. A block is any code which is surrounded by { ... }.
  * Returns a NODE_BLOCK node, with all substatements stored as a linked list in the ASTNode's body field.
  * This function also deals with scopes automatically. A new scope is created for each block, and left once the block finishes.
@@ -636,38 +676,6 @@ ASTNode *parse_expr_statement(ParserContext *ctx) {
  */
 ASTNode *parse_expression(ParserContext *ctx) {
 	return parse_variable_assignment(ctx);
-}
-
-ASTNode* new_node_binary(NodeType type, ASTNode* l_value, ASTNode* r_value, Token* tok) {
-	ASTNode* new_node = calloc(1, sizeof(ASTNode));
-	new_node->l_value = l_value;
-	new_node->r_value = r_value;
-	new_node->node_type = type;
-	new_node->token = tok;
-	return new_node;
-}
-
-ASTNode* new_node_unary(NodeType type, ASTNode* unary_val, Token* tok) {
-	ASTNode* new_node = calloc(1, sizeof(ASTNode));
-	new_node->r_value = unary_val;
-	new_node->node_type = type;
-	new_node->l_value = NULL;
-	new_node->token = tok;
-	return new_node;
-}
-
-ASTNode* new_node_memidentifier(ASTNode* l_value, char* identifier, Token* tok) {
-	ASTNode* new_node = calloc(1, sizeof(ASTNode));
-	new_node->l_value = l_value;
-	new_node->node_type = NODE_MEMBER;
-	new_node->r_value = NULL;
-	new_node->token = tok;
-	
-	Symbol* mem_sym = calloc(1, sizeof(Symbol));
-	mem_sym->name = identifier;
-	new_node->variable_symbol = mem_sym;
-
-	return new_node;
 }
 
 ASTNode *parse_variable_assignment(ParserContext *ctx) {
