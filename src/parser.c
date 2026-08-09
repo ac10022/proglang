@@ -244,18 +244,18 @@ Symbol *symbol_lookup(Scope *scope, char *sym_name) {
 
 ASTNode *parse_statement(ParserContext *ctx) {
 #ifdef DEBUG
-	printf("parsing statement\n");
-	printf("%s\n", token_type_to_str(ctx->cur_token));
-	DEBUG_TOKEN_STR(ctx->cur_token);
+	// printf("parsing statement\n");
+	// printf("%s\n", token_type_to_str(ctx->cur_token));
+	// DEBUG_TOKEN_STR(ctx->cur_token);
 #endif
 	switch (ctx->cur_token->token_type) {
 		case TOKEN_KEYWORD_FUNCTION:
 			// defining a function
-			TODO("parse function"); // just to stop compiler getting stuck in infinite loop
+			// TODO("parse function"); // just to stop compiler getting stuck in infinite loop
 			return parse_function(ctx);
 		case TOKEN_PRIMITIVE_TYPE_SPECIFIER:
 #ifdef DEBUG
-			printf("hit?\n");
+			// printf("hit?\n");
 #endif
 			return parse_variable_declaration(ctx, true, NULL);
 		case TOKEN_KEYWORD_IF:
@@ -329,8 +329,103 @@ ASTNode *parse_variable_declaration(ParserContext *ctx, bool expect_semicolon, b
     return declaration_node;
 }
 
+ASTNode *parse_function_parameter(ParserContext *ctx) {
+	if (ctx->cur_token->token_type != TOKEN_PRIMITIVE_TYPE_SPECIFIER) {
+		// this MAY be triggered later because we have no parsing for struct or non-primitive types yet, for instance if we had idk a user-defined Time struct later, this would call on
+		// fn foo(Time t) -> void { ... }
+		// because Time is not primitive
+		ERR_SYNTAX(ctx->cur_token, /* expected a */ "valid type specifier for parameter");
+	}
+
+	TypeInfo* param_type = ctx->cur_token->typeinfo;
+	Token* type_ref = ctx->cur_token;
+	advance_token(ctx); // consume type specifier
+
+	if (ctx->cur_token->token_type != TOKEN_SYMBOL_IDENTIFIER) {
+		ERR_SYNTAX(ctx->cur_token, /* expected a */ "valid identifier for function parameter");
+	}
+
+	char* param_name = ctx->cur_token->lexeme;
+	Token* name_ref = ctx->cur_token;
+
+	Symbol* param = new_symbol(ctx, param_name, param_type);
+	advance_token(ctx);
+
+	ASTNode* param_node = new_node_general(NODE_PARAMETER, type_ref);
+	param_node->variable_symbol = param;
+
+	return param_node;
+}
+
 ASTNode *parse_function(ParserContext *ctx) {
-	return NULL;
+	assert(ctx->cur_token->token_type == TOKEN_KEYWORD_FUNCTION);
+	ASTNode* func = new_node_general(NODE_FUNCTION, ctx->cur_token);
+	advance_token(ctx);
+
+	// function identifier, can be accessed through node->token->lexeme
+	if (ctx->cur_token->token_type != TOKEN_SYMBOL_IDENTIFIER) {
+		ERR_SYNTAX(ctx->cur_token, /* expected a */ "valid identifier for function");
+	}
+	func->function_name = ctx->cur_token->lexeme;
+	advance_token(ctx);
+
+	if (	ctx->cur_token->token_type != TOKEN_PUNCTUATOR 
+		|| 	ctx->cur_token->punc_type != PUNC_OPEN_PAREN	) {
+		ERR_SYNTAX(ctx->cur_token, /* expected a */ "open parenthesis '(' for potential function arguments");
+	}
+	advance_token(ctx); // consume (
+
+	// parse parameters in a new scope (so param placeholders cannot be used outside of the function)
+	set_new_scope(ctx);
+	ASTNode* params = NULL;
+
+	if (	ctx->cur_token->token_type != TOKEN_PUNCTUATOR 
+		|| 	ctx->cur_token->punc_type != PUNC_CLOSE_PAREN	) {
+		for (bool more_params = true; more_params;) {
+			ASTNode* cur_param = parse_function_parameter(ctx);
+		
+			if (params == NULL) params = cur_param;
+			else {
+				ASTNode* temp = params;
+				for (; temp->next != NULL; temp = temp->next);
+				temp->next = cur_param;
+			}
+
+			more_params = 	ctx->cur_token->token_type == TOKEN_PUNCTUATOR 
+						&& 	ctx->cur_token->punc_type == PUNC_COMMA;
+			if (more_params) advance_token(ctx);
+		}
+	}
+	func->l_value = params;
+
+	if (	ctx->cur_token->token_type != TOKEN_PUNCTUATOR 
+		|| 	ctx->cur_token->punc_type != PUNC_CLOSE_PAREN	) {
+		ERR_SYNTAX(ctx->cur_token, /* expected a */ "closing parenthesis ')' after function parameters");
+	}
+	advance_token(ctx); // consume )
+
+	if (	ctx->cur_token->token_type != TOKEN_PUNCTUATOR 
+		|| 	ctx->cur_token->punc_type != PUNC_ARROW	) {
+		ERR_SYNTAX(ctx->cur_token, /* expected a */ "arrow before declaring function return type");
+	}
+	advance_token(ctx); // consume ->
+
+	if (ctx->cur_token->token_type != TOKEN_PRIMITIVE_TYPE_SPECIFIER) {
+		// this MAY be triggered later because we have no parsing for struct or non-primitive types yet, for instance if we had idk a user-defined Time struct later, this would call on
+		// fn foo(void) -> Time { ... }
+		// because Time is not primitive
+		ERR_SYNTAX(ctx->cur_token, /* expected a */ "valid type specifier for function return type");
+	}
+
+	TypeInfo* return_type = ctx->cur_token->typeinfo;
+	func->function_return_type = return_type;
+	advance_token(ctx); // consume return type
+
+	func->body = parse_block(ctx);
+
+	exit_scope(ctx);
+
+	return func;
 }
 
 bool equal(Token *token, char *op) {
@@ -588,8 +683,6 @@ ASTNode *parse_for_statement(ParserContext *ctx) {
 		exit_scope(ctx);
 		return for_stmt;
 	}
-
-	
 }
 
 /*
@@ -1234,6 +1327,7 @@ const char* node_to_str(NodeType type) {
 		case NODE_FOR:					return "FOR";
 		case NODE_IF:					return "IF";
 		case NODE_BLOCK:				return "BLOCK";
+		case NODE_PARAMETER:			return "PARAMETER";
         default:                        printf("%d ", type); return "UNKNOWN_NODE";
     }
 }
@@ -1244,10 +1338,21 @@ void trace(ASTNode* head, size_t depth) {
 	for (size_t i = 0; i < depth; i++) printf("  ");
 	printf("%s", node_to_str(head->node_type));
 
-	if (head->node_type == NODE_VARIABLE || head->node_type == NODE_MEMBER || head->node_type == NODE_FUNCTION)
+	if (head->node_type == NODE_VARIABLE || head->node_type == NODE_MEMBER || head->node_type == NODE_PARAMETER)
 		printf(" [\"%s\"]", head->variable_symbol->name);
 
-	if (head->node_type == NODE_VARIABLE) {
+	if (head->node_type == NODE_FUNCTION) {
+		printf(" [\"%s\"]", head->function_name);
+		printf(" | RETURNS");
+		TypeInfo* t_info = head->function_return_type;
+		printf(" [type=%s]", type_to_str(t_info->type, t_info->is_unsigned));
+		if (t_info->type != TYPE_VOID) {
+			printf(" [pdepth=%hu]", t_info->pointer_depth);
+			if (t_info->pointer_depth > 0) printf(" [%s]", t_info->is_optional ? "nullable" : "nonnull");
+		}
+	}
+
+	if (head->node_type == NODE_VARIABLE || head->node_type == NODE_PARAMETER) {
 		TypeInfo* t_info = head->variable_symbol->typeinfo;
 		printf(" [type=%s]", type_to_str(t_info->type, t_info->is_unsigned));
 		printf(" [pdepth=%hu]", t_info->pointer_depth);

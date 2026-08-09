@@ -276,6 +276,11 @@ TokenType get_identifier_type(char* pointer, size_t len, Type* type, bool* is_un
 
     *is_unsigned = false;
 
+    if (len == 4 && strncmp(pointer, "void", 4) == 0) {
+        *type = TYPE_VOID;
+        return TOKEN_PRIMITIVE_TYPE_SPECIFIER;
+    } 
+
     if (len == 2 && strncmp(pointer, "b8", 2) == 0) {
         *type = TYPE_BOOL;
         return TOKEN_PRIMITIVE_TYPE_SPECIFIER;

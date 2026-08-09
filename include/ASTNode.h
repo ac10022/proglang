@@ -52,6 +52,7 @@ typedef enum {
     NODE_FUNCTION_DECLARATION,
 	NODE_FUNCTION, // { function_name, function_arguments, function_return_type (someday) } 
 	NODE_VARAIBLE_DECLARATION,
+    NODE_PARAMETER,
 
     NODE_LITERAL_INT,
     NODE_LITERAL_FLOAT,
@@ -68,6 +69,7 @@ typedef struct ASTNode {
 	Token *token;
 
 	Symbol *variable_symbol;
+    char *function_name;
 
 	TypeInfo *variable_typeinfo;
 	TypeInfo *function_return_type;
