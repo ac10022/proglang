@@ -8,6 +8,7 @@
 
 typedef struct Symbol Symbol;
 typedef struct Scope Scope;
+typedef struct Function Function;
 
 struct Symbol {
     Symbol *next;
@@ -23,13 +24,31 @@ struct Scope {
     Scope *parent;
     uint8_t scope_depth;
     Symbol *symbols_head;
+    Function *functions_head;
 };
 
 #include "ASTNode.h" // we should probably move all includes to proglang.h, this has to be here because of how the structs in this file are defined
 
+struct Function {
+    ASTNode* func_node;
+    Function* next;
+};
+
 typedef struct {
     Token *cur_token;
-    ASTNode *cur_function;
+    
+    ASTNode *cur_function;      // which function we are currently inside
+    ASTNode *cur_function_call; // which function we are currently calling, may be NULL
+                                
+    /*
+     *  fn main(void) -> void {
+     *      add(1, 2);
+     *  //     ^
+     *  }
+     *
+     * if cur_token is where the ^ symbol is, then cur_function is the 'main' function, and cur_function_call is the 'add' function
+     */
+
     Scope *cur_scope;
 
 #ifdef DEBUG

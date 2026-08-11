@@ -23,7 +23,7 @@ void initialise_parser_context(ParserContext *ctx, Token* head) {
 	ctx->cur_token = head;
 
 #ifdef DEBUG
-	ctx->variable_counter = 0;
+	ctx->variable_counter = (size_t)0;
 #endif 
 
 	initialise_global_scope(ctx);
@@ -242,6 +242,64 @@ Symbol *symbol_lookup(Scope *scope, char *sym_name) {
 	return NULL;
 }
 
+Scope* get_global_scope(ParserContext *ctx) {
+	Scope* ref = ctx->cur_scope;
+	while (ref->parent != NULL) ref = ref->parent;
+	assert(ref->scope_depth == SCOPE_GLOBAL_DEPTH);
+	return ref;
+}
+
+ASTNode *function_lookup(ParserContext *ctx, char *function_name) {
+	Scope* global = get_global_scope(ctx);
+	assert(global != NULL);
+
+	size_t fun_len = strlen(function_name);
+
+	Function* cur_fun = global->functions_head;
+	while (cur_fun != NULL) {
+		if (strlen(cur_fun->func_node->function_name) == fun_len && strncmp(cur_fun->func_node->function_name, function_name, fun_len) == 0) return cur_fun->func_node;
+		cur_fun = cur_fun->next;
+	}
+
+	return NULL;
+}
+
+size_t function_get_param_count(ASTNode *function_node) {
+	assert(function_node->node_type == NODE_FUNCTION);
+
+	if (function_node->l_value == NULL) return (size_t)0;
+	size_t param_count = 1;
+
+	ASTNode *end = function_node->l_value;
+	for (; end->next != NULL; end = end->next) param_count++;
+	return param_count;
+}
+
+void add_cur_function_to_global_scope(ParserContext *ctx) {
+	assert(ctx->cur_function != NULL);
+
+	// function with this name already exists
+	if (function_lookup(ctx, ctx->cur_function->function_name) != NULL) {
+		ERR_SEMANTIC(ctx->cur_token, "trying to declare a function with an identifier already taken");
+	}
+
+	Scope* global = get_global_scope(ctx);
+	assert(global != NULL);
+
+	Function* fun = calloc(1, sizeof(Function));
+	fun->func_node = ctx->cur_function;
+	fun->next = NULL;
+
+	// push function to end of global function linked list
+	if (global->functions_head) {
+		Function *end = global->functions_head;
+		for (; end->next != NULL; end = end->next);
+		end->next = fun;
+	} else {
+		global->functions_head = fun;
+	}
+}
+
 ASTNode *parse_statement(ParserContext *ctx) {
 #ifdef DEBUG
 	// printf("parsing statement\n");
@@ -379,8 +437,16 @@ ASTNode *parse_function(ParserContext *ctx) {
 	set_new_scope(ctx);
 	ASTNode* params = NULL;
 
-	if (	ctx->cur_token->token_type != TOKEN_PUNCTUATOR 
-		|| 	ctx->cur_token->punc_type != PUNC_CLOSE_PAREN	) {
+	//									  vvvv
+	// case function defined like fn main(void) -> ... { ... }
+	if (	ctx->cur_token->token_type == TOKEN_PRIMITIVE_TYPE_SPECIFIER
+		&& 	ctx->cur_token->typeinfo->type == TYPE_VOID					) {
+		advance_token(ctx); // skip 'void'
+	}
+
+	// general function definition fn foo(T1 a, T2 b ... ) -> T3 { ... } 
+	else if (	ctx->cur_token->token_type != TOKEN_PUNCTUATOR 
+			|| 	ctx->cur_token->punc_type != PUNC_CLOSE_PAREN	) {
 		for (bool more_params = true; more_params;) {
 			ASTNode* cur_param = parse_function_parameter(ctx);
 		
@@ -396,6 +462,7 @@ ASTNode *parse_function(ParserContext *ctx) {
 			if (more_params) advance_token(ctx);
 		}
 	}
+
 	func->l_value = params;
 
 	if (	ctx->cur_token->token_type != TOKEN_PUNCTUATOR 
@@ -404,22 +471,38 @@ ASTNode *parse_function(ParserContext *ctx) {
 	}
 	advance_token(ctx); // consume )
 
+	// function has an arrow + return type specifier 
 	if (	ctx->cur_token->token_type != TOKEN_PUNCTUATOR 
-		|| 	ctx->cur_token->punc_type != PUNC_ARROW	) {
-		ERR_SYNTAX(ctx->cur_token, /* expected a */ "arrow before declaring function return type");
+		|| 	ctx->cur_token->punc_type != PUNC_OPEN_CURLY	) {
+			if (	ctx->cur_token->token_type != TOKEN_PUNCTUATOR 
+				|| 	ctx->cur_token->punc_type != PUNC_ARROW	) {
+				ERR_SYNTAX(ctx->cur_token, /* expected a */ "arrow before declaring function return type");
+			}
+			advance_token(ctx); // consume ->
+		
+			if (ctx->cur_token->token_type != TOKEN_PRIMITIVE_TYPE_SPECIFIER) {
+				// this MAY be triggered later because we have no parsing for struct or non-primitive types yet, for instance if we had idk a user-defined Time struct later, this would call on
+				// fn foo(void) -> Time { ... }
+				// because Time is not primitive
+				ERR_SYNTAX(ctx->cur_token, /* expected a */ "valid type specifier for function return type");
+			}
+		
+			TypeInfo* return_type = ctx->cur_token->typeinfo;
+			func->function_return_type = return_type;
+			advance_token(ctx); // consume return type
 	}
-	advance_token(ctx); // consume ->
 
-	if (ctx->cur_token->token_type != TOKEN_PRIMITIVE_TYPE_SPECIFIER) {
-		// this MAY be triggered later because we have no parsing for struct or non-primitive types yet, for instance if we had idk a user-defined Time struct later, this would call on
-		// fn foo(void) -> Time { ... }
-		// because Time is not primitive
-		ERR_SYNTAX(ctx->cur_token, /* expected a */ "valid type specifier for function return type");
+	// function does not have a specified return type
+	// e.g., fn main() { ... }
+	// this is legal
+	// we should just infer the return type is VOID
+	else {
+		func->function_return_type = calloc(1, sizeof(TypeInfo));
+		SET_TYPE_VOID(func->function_return_type);
 	}
 
-	TypeInfo* return_type = ctx->cur_token->typeinfo;
-	func->function_return_type = return_type;
-	advance_token(ctx); // consume return type
+	ctx->cur_function = func;
+	add_cur_function_to_global_scope(ctx);
 
 	func->body = parse_block(ctx);
 
@@ -725,8 +808,41 @@ ASTNode *parse_block(ParserContext *ctx) {
 }
 
 ASTNode *parse_return_statement(ParserContext *ctx) {
-	TODO("parse return stmt, we need to do parse function first");
-	return NULL;
+	assert(ctx->cur_token->token_type == TOKEN_KEYWORD_RETURN);
+
+	if (ctx->cur_function == NULL) {
+		ERR_SYNTAX(ctx->cur_token, /* expected a */ "stray 'return' statement");
+	}
+
+	Token* ref = ctx->cur_token;
+	advance_token(ctx); // consume 'return'
+	
+	TypeInfo* expected_return_type = ctx->cur_function->function_return_type;
+	assert(expected_return_type != NULL);
+
+	ASTNode* ret = new_node_general(NODE_RETURN, ref);
+
+	if (	ctx->cur_token->token_type == TOKEN_PUNCTUATOR 
+		&& 	ctx->cur_token->punc_type == PUNC_SEMICOLON		) {
+		
+		if (expected_return_type->type != TYPE_VOID) {
+			ERR_SYNTAX(ctx->cur_token, /* expected a */ "expression following 'return' for non-void function");
+		}
+
+		advance_token(ctx);
+		return ret;
+	}
+
+	ASTNode* res_expr = parse_expression(ctx);
+	ret->l_value = res_expr;
+
+	if (	ctx->cur_token->token_type != TOKEN_PUNCTUATOR
+		|| 	ctx->cur_token->punc_type != PUNC_SEMICOLON		){
+		ERR_SYNTAX(ctx->cur_token, /* expected a */ "';' semicolon to end return statement");
+	}
+	advance_token(ctx);
+
+	return ret;
 }
 
 /*
@@ -1137,9 +1253,15 @@ ASTNode* parse_postfix(ParserContext* ctx) {
 				break;
 			}
 
-			case PUNC_OPEN_PAREN:
+			case PUNC_OPEN_PAREN: {
+				if (ctx->cur_function_call == NULL) {
+					ERR_SYNTAX(ctx->cur_token, /* expected a */ "function to call");
+				}
+
 				left = parse_function_call(ctx, &left);
+				ctx->cur_function_call = NULL;
 				break;
+			}
 
 			case PUNC_INCREMENT:
 			case PUNC_DECREMENT: {
@@ -1209,9 +1331,20 @@ ASTNode* parse_else(ParserContext* ctx) {
 
             var_node->node_type = type;
 
-			Symbol* sym = symbol_lookup(ctx->cur_scope, ctx->cur_token->lexeme);
-			if (sym == NULL) ERR_SYNTAX(ctx->cur_token, /* expected a */ "previously declared identifier in the scope");
-            var_node->variable_symbol = sym;
+			if (type == NODE_VARIABLE) {
+				Symbol* sym = symbol_lookup(ctx->cur_scope, ctx->cur_token->lexeme);
+				if (sym == NULL) ERR_SYNTAX(ctx->cur_token, /* expected a */ "previously declared identifier in the scope");
+				var_node->variable_symbol = sym;
+			}
+
+			else if (type == NODE_FUNCTION) {
+				ASTNode* fun = function_lookup(ctx, ctx->cur_token->lexeme);
+				if (fun == NULL) ERR_SYNTAX(ctx->cur_token, /* expected a */ "previously declared function in the scope");
+				ctx->cur_function_call = fun;
+				var_node->function_name = fun->function_name;
+				var_node->function_return_type = fun->function_return_type;
+			}
+
             var_node->token = ctx->cur_token;
             
             advance_token(ctx);
@@ -1245,6 +1378,7 @@ ASTNode* parse_else(ParserContext* ctx) {
 ASTNode* parse_function_call(ParserContext* ctx, ASTNode** rest) {
 	assert(	ctx->cur_token->token_type == TOKEN_PUNCTUATOR 
 		&& 	ctx->cur_token->punc_type == PUNC_OPEN_PAREN		);
+	assert(ctx->cur_function_call != NULL);
 
 	Token* ref = ctx->cur_token;
 	advance_token(ctx);
@@ -1254,9 +1388,11 @@ ASTNode* parse_function_call(ParserContext* ctx, ASTNode** rest) {
 	func_call->token = ref;
 
 	ASTNode* args = NULL;
+	size_t provided_arg_count = 0;
 	if (	ctx->cur_token->token_type != TOKEN_PUNCTUATOR 
 		|| 	ctx->cur_token->punc_type != PUNC_CLOSE_PAREN	) {
 		for (bool more_args = true; more_args;) {
+			provided_arg_count++;
 			ASTNode* cur_arg = parse_expression(ctx);
 		
 			if (args == NULL) args = cur_arg;
@@ -1270,6 +1406,16 @@ ASTNode* parse_function_call(ParserContext* ctx, ASTNode** rest) {
 						&& 	ctx->cur_token->punc_type == PUNC_COMMA;
 			if (more_args) advance_token(ctx);
 		}
+	}
+
+	size_t expected_param_count = function_get_param_count(ctx->cur_function_call);
+	// printf("exp -> %lu\nactual -> %lu\n", expected_param_count, provided_arg_count);
+
+	if (provided_arg_count > expected_param_count) {
+		ERR_SEMANTIC(ctx->cur_token, /* expected a */ "provided too many function arguments in function call");
+	}
+	else if (provided_arg_count < expected_param_count) {
+		ERR_SEMANTIC(ctx->cur_token, /* expected a */ "provided too few function arguments in function call");
 	}
 
 	if (	ctx->cur_token->token_type != TOKEN_PUNCTUATOR 
@@ -1328,6 +1474,7 @@ const char* node_to_str(NodeType type) {
 		case NODE_IF:					return "IF";
 		case NODE_BLOCK:				return "BLOCK";
 		case NODE_PARAMETER:			return "PARAMETER";
+		case NODE_RETURN:				return "RETURN";
         default:                        printf("%d ", type); return "UNKNOWN_NODE";
     }
 }
@@ -1416,6 +1563,10 @@ void trace(ASTNode* head, size_t depth) {
 	if (head->node_type == NODE_IF) {
 		for (size_t i = 0; i < depth; i++) printf("  ");
 		printf("ENDIF\n");
+	}
+	if (head->node_type == NODE_FUNCTION) {
+		for (size_t i = 0; i < depth; i++) printf("  ");
+		printf("ENDFUNCTION\n");
 	}
 	if (head->next != NULL) trace(head->next, depth);
 }

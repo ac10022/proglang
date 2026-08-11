@@ -1,4 +1,4 @@
-fn main(void) -> void {
+fn main() {
     char c = 'a';           //
     char* p1 = &c;          //
     char** p2 = &p1;        // normal nonnull pointers

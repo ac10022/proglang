@@ -1,3 +1,17 @@
-fn main(i32 argc, char** argv) -> i32* {
-    argc++;
+fn print(char* str) { }
+
+fn add(i32 a, i32 b) -> i32 {
+    i32 res = a + b;
+    return res;
+}
+
+fn main(void) {
+    i32 res = add(1, 2);
+    if (res > 3) {
+        print("ok");
+    }
+    else {
+        print("not ok");
+    }
+
 }

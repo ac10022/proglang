@@ -147,9 +147,20 @@ uint64_t read_escaped_char(char* pointer, char** end);
 
 size_t read_identifier(char *start);
 
+size_t get_type_size(Type* type);
+
 Token *tokenize(FileInfo *source);
 Token *tokenize_file(char *filepath);
 size_t get_token_count(Token *head);
+
+#define SET_TYPE_VOID(typeinfo_ptr) \
+    do { \
+        (typeinfo_ptr)->type = TYPE_VOID; \
+        (typeinfo_ptr)->size = get_type_size(&(typeinfo_ptr)->type); \
+        (typeinfo_ptr)->is_unsigned = false; \
+        (typeinfo_ptr)->pointer_depth = (uint16_t)0; \
+        (typeinfo_ptr)->is_optional = false; \
+    } while (0) 
 
 #ifdef DEBUG
 const char *punc_to_str(Punctuator punc);
