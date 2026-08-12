@@ -2,10 +2,10 @@ fn main(i32 argc, char** argv) {
 	i32 x = 1;
 	f32 f = 0.0004;
 	f64 d = 3.14159265;
-	b8 bool = true;
+	b8 bool = 1;
 
 	u32 y = 12*12;
-	u8 char = 'c';
+	u8 char1 = 'c';
 
 	f64 big = 1e+10;
 	f64 small = 1e-5;

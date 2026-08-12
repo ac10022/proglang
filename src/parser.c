@@ -192,6 +192,9 @@ Scope *exit_scope(ParserContext *ctx) {
 	return ctx->cur_scope;
 }
 
+/*
+ * Create a new symbol and push it onto the current context's scope.
+ */
 Symbol *new_symbol(ParserContext *ctx, char *sym_identifier, TypeInfo* typeinfo) {
 	// check symbol does not already exist
 	if (symbol_lookup(ctx->cur_scope, sym_identifier) != NULL) {
@@ -242,6 +245,9 @@ Symbol *symbol_lookup(Scope *scope, char *sym_name) {
 	return NULL;
 }
 
+/*
+ * Helper function to retrieve a pointer to the global scope. 
+ */
 Scope* get_global_scope(ParserContext *ctx) {
 	Scope* ref = ctx->cur_scope;
 	while (ref->parent != NULL) ref = ref->parent;
@@ -249,6 +255,10 @@ Scope* get_global_scope(ParserContext *ctx) {
 	return ref;
 }
 
+/*
+ * Helper function to lookup whether a function has already been defined.
+ * This will return the NODE_FUNCTION ASTNode of the function if we have already defined this function, otherwise will return NULL if it is not found (i.e. does not exist).
+ */
 ASTNode *function_lookup(ParserContext *ctx, char *function_name) {
 	Scope* global = get_global_scope(ctx);
 	assert(global != NULL);
@@ -264,6 +274,12 @@ ASTNode *function_lookup(ParserContext *ctx, char *function_name) {
 	return NULL;
 }
 
+/*
+ * A helper function to get the parameter count of a function's signature.
+ * e.g.,
+ * 	fn foo(T1 a, T2 b, T3 c) -> T { ... }
+ * will have a parameter count of 3. 
+ */
 size_t function_get_param_count(ASTNode *function_node) {
 	assert(function_node->node_type == NODE_FUNCTION);
 
@@ -275,6 +291,9 @@ size_t function_get_param_count(ASTNode *function_node) {
 	return param_count;
 }
 
+/*
+ * Appends the current function (context's cur_function) into the global function linked list.
+ */
 void add_cur_function_to_global_scope(ParserContext *ctx) {
 	assert(ctx->cur_function != NULL);
 
@@ -387,6 +406,11 @@ ASTNode *parse_variable_declaration(ParserContext *ctx, bool expect_semicolon, b
     return declaration_node;
 }
 
+/*
+ * Parses a single function parameter from the function template.
+ * Returns a NODE_PARAMETER node, which holds the parameter symbol in the variable_symbol field.
+ * TODO: currently only supports primitive types, functionality needs to be extended to support struct types.
+ */
 ASTNode *parse_function_parameter(ParserContext *ctx) {
 	if (ctx->cur_token->token_type != TOKEN_PRIMITIVE_TYPE_SPECIFIER) {
 		// this MAY be triggered later because we have no parsing for struct or non-primitive types yet, for instance if we had idk a user-defined Time struct later, this would call on
@@ -415,6 +439,25 @@ ASTNode *parse_function_parameter(ParserContext *ctx) {
 	return param_node;
 }
 
+/*
+ * Parses an function statement.
+ * A function statement has forms:
+ * 
+ * 	fn foo(T1 arg1, T2 arg2, ..., TN argn) -> T { ... }		
+ * 		// foo :: T1 -> T2 -> ... -> TN -> T
+ * 
+ *  fn foo(void) -> T { ... }
+ * 		// foo :: void -> T
+ * 
+ *  fn foo() { ... }		
+ * 		// foo :: void -> void
+ * 		
+ * Returns a NODE_FUNCTION node.
+ * The function name is stored in the function_name field.
+ * The parameters are stored as a linked list in the l_value field.
+ * The return type is stored in the function_return_type field.
+ * The NODE_BLOCK which makes up the function body is stored in the body field.
+ */
 ASTNode *parse_function(ParserContext *ctx) {
 	assert(ctx->cur_token->token_type == TOKEN_KEYWORD_FUNCTION);
 	ASTNode* func = new_node_general(NODE_FUNCTION, ctx->cur_token);
@@ -509,22 +552,6 @@ ASTNode *parse_function(ParserContext *ctx) {
 	exit_scope(ctx);
 
 	return func;
-}
-
-bool equal(Token *token, char *op) {
-  return memcmp(token->location, op, token->length) == 0 && op[token->length] == '\0';
-}
-
-bool is_token_type(Token *token, TokenType token_type) {
-	if (token == NULL) {
-		return false;
-	}
-
-	if (token->token_type == token_type) {
-		return true;
-	}
-
-	return false;
 }
 
 /*
