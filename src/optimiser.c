@@ -245,10 +245,64 @@ void lower(OptimiserContext* ctx, ASTNode* node) {
             emit(ctx, IR_LABEL, exit, IROPERAND_EMPTY, IROPERAND_EMPTY);    // exit:
             break;
         }
+
+        case NODE_FUNCTION: {
+
+            /*
+             * fn foo(T1 arg1, T2 arg2 ... ) -> T { ... }
+             * 
+             * translating to:
+             * FUNC_BEGIN 'foo'
+             * [PARAMS]
+             * [BODY]
+             * RETURN
+             * FUNC_END 'foo'
+             *
+             */
+
+            IROperand fn = (IROperand) {
+                .type = IROP_FUNC,
+                .func_name = node->function_name,
+            };
+
+            emit(ctx, IR_BEGIN_FUNC, fn, IROPERAND_EMPTY, IROPERAND_EMPTY);
+
+            for (ASTNode* end = node->l_value; end != NULL; end = end->next) {
+                IROperand param = (IROperand) {
+                    .type = IROP_SYMBOL,
+                    .sym = end->variable_symbol,
+                };
+
+                emit(ctx, IR_PARAM, param, IROPERAND_EMPTY, IROPERAND_EMPTY);
+            }
+
+            lower(ctx, node->body);
+
+            emit(ctx, IR_RETURN, IROPERAND_EMPTY, IROPERAND_EMPTY, IROPERAND_EMPTY);
+            emit(ctx, IR_END_FUNC, fn, IROPERAND_EMPTY, IROPERAND_EMPTY);
+
+            break;
+        }
             
+        case NODE_RETURN: {
+            // return has value
+            if (node->l_value) {
+                IROperand val = lower_expr(ctx, node->l_value);
+                emit(ctx, IR_RETURN, IROPERAND_EMPTY, val, IROPERAND_EMPTY);
+            }
+
+            // return has no value
+            else {
+                emit(ctx, IR_RETURN, IROPERAND_EMPTY, IROPERAND_EMPTY, IROPERAND_EMPTY);
+            }
+
+            break;
+        }
+
         case NODE_SWITCH:
-        case NODE_RETURN:
-            TODO("lower for/switch/return statements");
+        case NODE_FUNCTION_CALL:
+        case NODE_FUNCTION_DECLARATION:
+            TODO("lower switch/function calls");
 
         default:
             lower_expr(ctx, node);
@@ -524,6 +578,7 @@ const char* irop_to_str(IROperation op) {
         case IR_NE:         return "!=";
         case IR_CALL:       return "CALL";
         case IR_JUMP:       return "JUMP";
+        case IR_PARAM:      return "PARAM";
         default:            return "UNKNOWN";
     }
 } 
@@ -535,6 +590,7 @@ void print_ir_operand(IROperand op) {
         case IROP_CONST_INT:    printf("%lu", op.int_val); return;
         case IROP_CONST_FLOAT:  printf("%Lf", op.float_val); return;
         case IROP_LABEL:        printf("$l%zu", op.label_id); return;
+        case IROP_FUNC:         printf("%s", op.func_name); return;
 
         case IROP_EMPTY:
         default:                return;
@@ -570,6 +626,18 @@ void print_ir(IRInstruction* instruction) {
         printf("* END CURRENT SCOPE *");
     } else if (instruction->op == IR_HALT) {
         printf("* PROGRAM HALT *");
+    } else if (instruction->op == IR_BEGIN_FUNC) {
+        printf("BEGIN FUNCTION ");
+        print_ir_operand(instruction->dest);
+    } else if (instruction->op == IR_END_FUNC) {
+        printf("END FUNCTION ");
+        print_ir_operand(instruction->dest);
+    } else if (instruction->op == IR_RETURN) {
+        printf("RETURN ");
+        print_ir_operand(instruction->src1);
+    } else if (instruction->op == IR_PARAM) {
+        printf("PARAM ");
+        print_ir_operand(instruction->dest);
     } else {
         print_ir_operand(instruction->dest);
         printf("=");

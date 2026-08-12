@@ -39,6 +39,11 @@ typedef enum {
     IR_BEGIN_SCOPE,
     IR_END_SCOPE,
 
+    IR_BEGIN_FUNC,
+    IR_END_FUNC,
+    IR_PARAM,
+    IR_RETURN,
+
     IR_HALT,
 } IROperation;
 
@@ -48,6 +53,7 @@ typedef enum {
     IROP_TEMP,
     IROP_CONST_INT,
     IROP_CONST_FLOAT,
+    IROP_FUNC,
     IROP_LABEL,
 } IROperandType;
 
@@ -59,6 +65,7 @@ typedef struct {
         size_t label_id;
         uint64_t int_val;
         long double float_val;
+        char* func_name;
     };
 } IROperand;
 
