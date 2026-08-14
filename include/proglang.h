@@ -3,9 +3,11 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+
+#include "cleanup.h"
+#include "base.h"
 #include "lexer.h"
 #include "parser.h"
 #include "optimiser.h"
-#include "base.h"
 
 #endif

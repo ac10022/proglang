@@ -5,9 +5,10 @@
 #include <stdlib.h>
 
 /*
- * TODO:
- *	* function parsing
- *	* return statement parsing
+ * TODO
+	* break/continue/import statements
+	* array types
+	* named arguments, e.g., print("hello world", target=stdout)
  */
 
 // the parser context is just a struct we use to encapsulate all the information the parser might need, without having to declare multiple global variables, which is bad practice
@@ -17,10 +18,11 @@
 // for example we only need ASTNode *parse_statement(ParserContext *ctx);
 // 				instead of	ASTNode *parse_statement(Token **token, Scope *cur_scope, FunctionInfo *fun_info ... ) etc.
 
-void initialise_parser_context(ParserContext *ctx, Token* head) {
+void initialise_parser_context(ParserContext *ctx, Token* head, CompilerContext *c_ctx) {
 	ctx->cur_function = NULL;
 	ctx->cur_scope = NULL;
 	ctx->cur_token = head;
+	ctx->cl_ctx = c_ctx->cl_ctx;
 
 #ifdef DEBUG
 	ctx->variable_counter = (size_t)0;
@@ -47,14 +49,13 @@ void advance_token(ParserContext *ctx) {
 /*
  * Main entry point of the PARSER component; accepts a Token linked list from the lexer and returns the corresponding AST, whilst checking for syntax.
  */
-ASTNode *generate_ast(Token *head) {
+ASTNode *generate_ast(Token *head, CompilerContext *c_ctx) {
 	ParserContext ctx = {};
-	initialise_parser_context(&ctx, head);
+	initialise_parser_context(&ctx, head, c_ctx);
 
 	ASTNode *root = NULL;
 
 	while (ctx.cur_token->token_type != TOKEN_EOF) {
-		// printf("%d\n", ctx.cur_token->token_type);
 		ASTNode* cur_statement = parse_statement(&ctx);
 		if (cur_statement == NULL) continue;
 
@@ -66,7 +67,6 @@ ASTNode *generate_ast(Token *head) {
 		}
 	}
 	
-	// printf("EOF\n");
 	return root;
 }
 
@@ -185,7 +185,7 @@ Scope *set_new_scope(ParserContext *ctx) {
 Scope *exit_scope(ParserContext *ctx) {
 	// how would you get here? idk but better be safe
 	if (ctx->cur_scope->scope_depth == SCOPE_GLOBAL_DEPTH) {
-		ERR_GENERAL("Cannot exit global scope.");
+		ERR_GENERAL("cannot exit global scope");
 	}
 
 	ctx->cur_scope = ctx->cur_scope->parent;
@@ -320,39 +320,26 @@ void add_cur_function_to_global_scope(ParserContext *ctx) {
 }
 
 ASTNode *parse_statement(ParserContext *ctx) {
-#ifdef DEBUG
-	// printf("parsing statement\n");
-	// printf("%s\n", token_type_to_str(ctx->cur_token));
-	// DEBUG_TOKEN_STR(ctx->cur_token);
-#endif
 	switch (ctx->cur_token->token_type) {
-		case TOKEN_KEYWORD_FUNCTION:
-			// defining a function
-			// TODO("parse function"); // just to stop compiler getting stuck in infinite loop
-			return parse_function(ctx);
-		case TOKEN_PRIMITIVE_TYPE_SPECIFIER:
-#ifdef DEBUG
-			// printf("hit?\n");
-#endif
-			return parse_variable_declaration(ctx, true, NULL);
-		case TOKEN_KEYWORD_IF:
-			return parse_if_statement(ctx);
-		case TOKEN_KEYWORD_WHILE:
-			return parse_while_statement(ctx);
-		case TOKEN_KEYWORD_FOR:
-			return parse_for_statement(ctx);
-		case TOKEN_KEYWORD_RETURN:
-			return parse_return_statement(ctx);
+		case TOKEN_KEYWORD_FUNCTION:			return parse_function(ctx);
+		case TOKEN_PRIMITIVE_TYPE_SPECIFIER:	return parse_variable_declaration(ctx, true, NULL);
+		case TOKEN_KEYWORD_IF:					return parse_if_statement(ctx);
+		case TOKEN_KEYWORD_WHILE:				return parse_while_statement(ctx);
+		case TOKEN_KEYWORD_FOR:					return parse_for_statement(ctx);
+		case TOKEN_KEYWORD_RETURN:				return parse_return_statement(ctx);
+		case TOKEN_SYMBOL_IDENTIFIER:			return parse_expr_statement(ctx);
+
 		case TOKEN_PUNCTUATOR:
 			if (ctx->cur_token->punc_type == PUNC_OPEN_CURLY) return parse_block(ctx);
-			TODO("how did you even call parse_statement on a punctuator?");
-			return NULL;
-		case TOKEN_SYMBOL_IDENTIFIER:
-			// calling a function, or assigning a variable
-			return parse_expr_statement(ctx);
+
+			if (ctx->cur_token->punc_type == PUNC_MULTIPLY) TODO("handle case of e.g., *p = 10");
+			if (ctx->cur_token->punc_type == PUNC_OPEN_PAREN) TODO("handle case of e.g., (tok)->next = NULL"); 
+
+			else ERR_SYNTAX(ctx->cur_token, /* expected a */ "valid statement token");
+			return NULL; // to shut up compiler
+		
 		default:
-			fprintf(stderr, "Syntax Error: Unknown statement token\n");
-            exit(1);
+			ERR_SYNTAX(ctx->cur_token, /* expected a */ "valid statement token");
 	}
 }
 
@@ -544,12 +531,14 @@ ASTNode *parse_function(ParserContext *ctx) {
 		SET_TYPE_VOID(func->function_return_type);
 	}
 
+	ASTNode* enclosing_func = ctx->cur_function;
 	ctx->cur_function = func;
 	add_cur_function_to_global_scope(ctx);
 
 	func->body = parse_block(ctx);
 
 	exit_scope(ctx);
+	ctx->cur_function = enclosing_func;
 
 	return func;
 }
@@ -808,6 +797,12 @@ ASTNode *parse_block(ParserContext *ctx) {
 
 	ASTNode* block = new_node_general(NODE_BLOCK, ctx->cur_token);
 	advance_token(ctx); // consume {
+
+	if (	ctx->cur_token->token_type == TOKEN_PUNCTUATOR
+		&&	ctx->cur_token->punc_type == PUNC_CLOSE_CURLY	) {
+		// should warn about empty block
+	}
+
 	set_new_scope(ctx);
 
 	while (		ctx->cur_token->token_type != TOKEN_EOF
@@ -838,7 +833,7 @@ ASTNode *parse_return_statement(ParserContext *ctx) {
 	assert(ctx->cur_token->token_type == TOKEN_KEYWORD_RETURN);
 
 	if (ctx->cur_function == NULL) {
-		ERR_SYNTAX(ctx->cur_token, /* expected a */ "stray 'return' statement");
+		ERR_SYNTAX(ctx->cur_token, /* expected a */ "function to house 'return' statement (stray return)");
 	}
 
 	Token* ref = ctx->cur_token;
@@ -929,8 +924,11 @@ ASTNode *parse_variable_assignment(ParserContext *ctx) {
 		Token* ref = ctx->cur_token;
 		advance_token(ctx);
 
-		if (	left->node_type != NODE_VARIABLE
-			&&	left->node_type != NODE_MEMBER		) {
+		if (	left->node_type != NODE_VARIABLE		/*	i32 v = 10	 */
+			&&	left->node_type != NODE_MEMBER			/*  man.age = 21 */
+			&&	left->node_type != NODE_DEREF			/*  *p = 10		 */
+			&&	left->node_type != NODE_INDEX	) {		/*	arr[i] = 10  */
+
 			// this should call if you are doing something like 5 = 1 + 2
 			// i.e. lval is not a variable or member
 			ERR_SEMANTIC(ctx->cur_token, "attempted to assign a non-assignable lvalue");
@@ -1235,7 +1233,7 @@ ASTNode* parse_unary(ParserContext* ctx) {
 				case PUNC_BITWISE_NOT: 	return new_node_unary(NODE_BITNOT, operand, ref);
 				case PUNC_SUBTRACTION: 	return new_node_unary(NODE_NEG, operand, ref);
 				case PUNC_MULTIPLY: 	return new_node_unary(NODE_DEREF, operand, ref);
-				default: ERR_GENERAL("Unreachable");
+				default: ERR_HALT_CTX(ctx->cl_ctx, "Unreachable");
 			}
 		}
 	}
@@ -1407,6 +1405,9 @@ ASTNode* parse_function_call(ParserContext* ctx, ASTNode** rest) {
 		&& 	ctx->cur_token->punc_type == PUNC_OPEN_PAREN		);
 	assert(ctx->cur_function_call != NULL);
 
+	ASTNode* cur_func_call = ctx->cur_function_call;
+	ctx->cur_function_call = NULL;
+
 	Token* ref = ctx->cur_token;
 	advance_token(ctx);
 	ASTNode* func_call = calloc(1, sizeof(ASTNode));
@@ -1435,7 +1436,7 @@ ASTNode* parse_function_call(ParserContext* ctx, ASTNode** rest) {
 		}
 	}
 
-	size_t expected_param_count = function_get_param_count(ctx->cur_function_call);
+	size_t expected_param_count = function_get_param_count(cur_func_call);
 	// printf("exp -> %lu\nactual -> %lu\n", expected_param_count, provided_arg_count);
 
 	if (provided_arg_count > expected_param_count) {

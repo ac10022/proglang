@@ -16,6 +16,14 @@ void initialise_compiler_context(CompilerContext* ctx) {
 	ctx->flags = (uint64_t)0;
 	ctx->filepath = NULL;
 	ctx->outpath = NULL;
+	ctx->cl_ctx = new_cleanup_context();
+}
+
+void destroy_compiler_context(CompilerContext* ctx) {
+	if (!ctx) return;
+	ctx->filepath = NULL;
+	ctx->outpath = NULL;
+	destroy_cleanup_context(ctx->cl_ctx);
 }
 
 void print_help(void) {

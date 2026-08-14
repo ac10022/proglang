@@ -5,6 +5,8 @@
 #include <stdio.h>
 #include <stdint.h>
 
+#include "cleanup.h"
+
 /*
  * DATA TYPES
  */
@@ -13,6 +15,8 @@ typedef struct {
 	uint64_t flags;
 	char *filepath;
 	char *outpath;
+
+    CleanupContext* cl_ctx;
 } CompilerContext;
 
 enum {
@@ -34,6 +38,10 @@ enum {
  * MACROS
  */
 
+/*
+ * Obsolete old error macros 
+ */
+
 #define STOP_COMPILATION() \
     do { \
         fprintf(stderr, "Stopping compilation ...\n"); \
@@ -49,6 +57,37 @@ enum {
 #define ERR_SYNTAX(tok_deref, expected) ERR_GENERAL("%s:%lu:\tSyntax error; expected "expected", got '%.*s'.", (tok_deref)->source->filepath, (tok_deref)->line_number, TOK_STR_VAL(tok_deref)); 
 
 #define ERR_SEMANTIC(tok_deref, msg) ERR_GENERAL("%s:%lu:\tSemantic error; "msg", got '%.*s'.", (tok_deref)->source->filepath, (tok_deref)->line_number, TOK_STR_VAL(tok_deref));
+
+/*
+ * New cleanup error macros
+ */
+
+#define ERR_GENERAL_CTX(cl_ctx, fmt, ...) \
+    do { \
+        append_new_notice((cl_ctx), NOTICE_ERROR, false, "ERROR:\t" fmt "\n", ##__VA_ARGS__); \
+    } while (0)
+
+#define ERR_HALT_CTX(cl_ctx, fmt, ...) \
+    do { \
+        append_new_notice((cl_ctx), NOTICE_ERROR, true, "ERROR:\t" fmt "\n", ##__VA_ARGS__); \
+    } while (0)
+
+#define ERR_SYNTAX_CTX(cl_ctx, tok_deref, expected) \
+    do { \
+        append_new_notice((cl_ctx), NOTICE_ERROR, false, "%s:%lu:\tSyntax error; expected " expected ", got '%.*s'.\n", \
+            (tok_deref)->source->filepath, (tok_deref)->line_number, TOK_STR_VAL(tok_deref)); \
+    } while (0)
+
+#define ERR_SEMANTIC_CTX(cl_ctx, tok_deref, msg) \
+    do { \
+        append_new_notice((cl_ctx), NOTICE_ERROR, false, "%s:%lu:\tSemantic error; " msg ", got '%.*s'.\n", \
+            (tok_deref)->source->filepath, (tok_deref)->line_number, TOK_STR_VAL(tok_deref)); \
+    } while (0)
+
+#define WARN_CTX(cl_ctx, fmt, ...) \
+    do { \
+        append_new_notice((cl_ctx), NOTICE_WARNING, false, "WARNING:\t" fmt "\n", ##__VA_ARGS__); \
+    } while (0)
 
 #define DEBUG_TOKEN_STR(tok) printf("%.*s\n", TOK_STR_VAL(tok))
 

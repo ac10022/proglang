@@ -13,7 +13,9 @@ set(SOURCES
 )
 
 add_executable(proglang ${SOURCES}
- src/optimiser.c)
+ src/optimiser.c
+ src/cleanup.c
+ include/cleanup.h)
 
 target_include_directories(proglang
     PRIVATE 
