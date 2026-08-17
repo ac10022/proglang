@@ -72,7 +72,7 @@ void append_new_notice(CleanupContext* cl_ctx, NoticeType type, bool requires_ha
 void print_all_notices(CleanupContext* cl_ctx) {
     if (cl_ctx->notices != NULL) {
         Notice *end = cl_ctx->notices;
-		for (; end->next != NULL; end = end->next) printf("%s", end->message);
+		for (; end != NULL; end = end->next) printf("%s", end->message);
     }
 }
 
@@ -89,12 +89,12 @@ void compilation_exit(CleanupContext* cl_ctx, bool preemptive) {
     cleanup(cl_ctx);
 
     if (preemptive) {
-        fprintf(stderr, "Compilation FAILED ... ");
+        fprintf(stderr, "Compilation FAILED ...\n");
         exit(1);
     }
 
     else {
-        fprintf(stdout, "Compilation SUCCESS ...");
+        fprintf(stdout, "Compilation SUCCESS ...\n");
         exit(0);
     }
 }

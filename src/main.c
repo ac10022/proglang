@@ -103,7 +103,7 @@ int main(int argc, char *argv[]) {
 
 	Token *tokens = tokenize_file(ctx.filepath);
 
-	ASTNode *ast = generate_ast(tokens);
+	ASTNode *ast = generate_ast(tokens, &ctx);
 
 #ifdef DEBUG
 	if (ctx.flags & CF_AST_TRACE) {

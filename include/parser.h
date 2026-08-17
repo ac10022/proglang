@@ -4,6 +4,7 @@
 #include <string.h>
 #include "lexer.h"
 #include "cleanup.h"
+#include "base.h"
 
 #define SCOPE_GLOBAL_DEPTH    0
 

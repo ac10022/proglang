@@ -12,7 +12,7 @@
  * Main entry point of the OPTIMISER component; accepts an AST from the parser (the head) and returns a linked list of IR instructions.
  */
 IRInstruction* ast_to_ir(ASTNode* root, CompilerContext* c_ctx) {
-    if (!root) ERR_GENERAL("Invalid AST provided for IR parsing");
+    if (!root) ERR_HALT_CTX(c_ctx->cl_ctx, "Invalid AST provided for IR parsing");
 
     OptimiserContext o_ctx = {};
     initialise_optim_context(&o_ctx);

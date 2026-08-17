@@ -1,5 +1,4 @@
-#include "../include/parser.h"
-#include "../include/base.h"
+#include "parser.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -198,7 +197,7 @@ Scope *exit_scope(ParserContext *ctx) {
 Symbol *new_symbol(ParserContext *ctx, char *sym_identifier, TypeInfo* typeinfo) {
 	// check symbol does not already exist
 	if (symbol_lookup(ctx->cur_scope, sym_identifier) != NULL) {
-		ERR_SEMANTIC(ctx->cur_token, "trying to declare a variable with an identifier already held by another variable in the same scope");
+		ERR_SEMANTIC_CTX(ctx->cl_ctx, ctx->cur_token, "trying to declare a variable with an identifier already held by another variable in the same scope", true);
 	}
 	
 	Symbol *new_symbol = calloc(1, sizeof(Symbol));
@@ -299,7 +298,7 @@ void add_cur_function_to_global_scope(ParserContext *ctx) {
 
 	// function with this name already exists
 	if (function_lookup(ctx, ctx->cur_function->function_name) != NULL) {
-		ERR_SEMANTIC(ctx->cur_token, "trying to declare a function with an identifier already taken");
+		ERR_SEMANTIC_CTX(ctx->cl_ctx, ctx->cur_token, "trying to declare a function with an identifier already taken", true);
 	}
 
 	Scope* global = get_global_scope(ctx);
@@ -335,11 +334,12 @@ ASTNode *parse_statement(ParserContext *ctx) {
 			if (ctx->cur_token->punc_type == PUNC_MULTIPLY) TODO("handle case of e.g., *p = 10");
 			if (ctx->cur_token->punc_type == PUNC_OPEN_PAREN) TODO("handle case of e.g., (tok)->next = NULL"); 
 
-			else ERR_SYNTAX(ctx->cur_token, /* expected a */ "valid statement token");
+			else ERR_SYNTAX_CTX(ctx->cl_ctx, ctx->cur_token, /* expected a */ "valid statement token", true);
 			return NULL; // to shut up compiler
 		
 		default:
-			ERR_SYNTAX(ctx->cur_token, /* expected a */ "valid statement token");
+			ERR_SYNTAX_CTX(ctx->cl_ctx, ctx->cur_token, /* expected a */ "valid statement token", true);
+			return NULL; // to shut up compiler
 	}
 }
 
@@ -353,7 +353,7 @@ ASTNode *parse_variable_declaration(ParserContext *ctx, bool expect_semicolon, b
 
     advance_token(ctx);
 	if (ctx->cur_token->token_type != TOKEN_SYMBOL_IDENTIFIER) {
-		ERR_SYNTAX(ctx->cur_token, /* expected a */ "variable identifer");
+		ERR_SYNTAX_CTX(ctx->cl_ctx, ctx->cur_token, /* expected a */ "variable identifer", true);
 	}
 
 	ASTNode *declaration_node = calloc(1, sizeof(ASTNode));
@@ -374,7 +374,7 @@ ASTNode *parse_variable_declaration(ParserContext *ctx, bool expect_semicolon, b
 			ASTNode *value_node = parse_expression(ctx);
 			
 			if (expect_semicolon && ctx->cur_token->punc_type != PUNC_SEMICOLON) {
-				ERR_SYNTAX(ctx->cur_token, /* expected a */ "';'");
+				ERR_SYNTAX_CTX(ctx->cl_ctx, ctx->cur_token, /* expected a */ "';'", true);
 			}
 
 			declaration_node->r_value = value_node;
@@ -387,7 +387,7 @@ ASTNode *parse_variable_declaration(ParserContext *ctx, bool expect_semicolon, b
 			return declaration_node;
 		}
     } else if (expect_semicolon) {
-		ERR_SYNTAX(ctx->cur_token, /* expected a */ "';'");
+		ERR_SYNTAX_CTX(ctx->cl_ctx, ctx->cur_token, /* expected a */ "';'", true);
 	}
     
     return declaration_node;
@@ -403,7 +403,7 @@ ASTNode *parse_function_parameter(ParserContext *ctx) {
 		// this MAY be triggered later because we have no parsing for struct or non-primitive types yet, for instance if we had idk a user-defined Time struct later, this would call on
 		// fn foo(Time t) -> void { ... }
 		// because Time is not primitive
-		ERR_SYNTAX(ctx->cur_token, /* expected a */ "valid type specifier for parameter");
+		ERR_SYNTAX_CTX(ctx->cl_ctx, ctx->cur_token, /* expected a */ "valid type specifier for parameter", true);
 	}
 
 	TypeInfo* param_type = ctx->cur_token->typeinfo;
@@ -411,7 +411,7 @@ ASTNode *parse_function_parameter(ParserContext *ctx) {
 	advance_token(ctx); // consume type specifier
 
 	if (ctx->cur_token->token_type != TOKEN_SYMBOL_IDENTIFIER) {
-		ERR_SYNTAX(ctx->cur_token, /* expected a */ "valid identifier for function parameter");
+		ERR_SYNTAX_CTX(ctx->cl_ctx, ctx->cur_token, /* expected a */ "valid identifier for function parameter", true);
 	}
 
 	char* param_name = ctx->cur_token->lexeme;
@@ -452,14 +452,14 @@ ASTNode *parse_function(ParserContext *ctx) {
 
 	// function identifier, can be accessed through node->token->lexeme
 	if (ctx->cur_token->token_type != TOKEN_SYMBOL_IDENTIFIER) {
-		ERR_SYNTAX(ctx->cur_token, /* expected a */ "valid identifier for function");
+		ERR_SYNTAX_CTX(ctx->cl_ctx, ctx->cur_token, /* expected a */ "valid identifier for function", true);
 	}
 	func->function_name = ctx->cur_token->lexeme;
 	advance_token(ctx);
 
 	if (	ctx->cur_token->token_type != TOKEN_PUNCTUATOR 
 		|| 	ctx->cur_token->punc_type != PUNC_OPEN_PAREN	) {
-		ERR_SYNTAX(ctx->cur_token, /* expected a */ "open parenthesis '(' for potential function arguments");
+		ERR_SYNTAX_CTX(ctx->cl_ctx, ctx->cur_token, /* expected a */ "open parenthesis '(' for potential function arguments", true);
 	}
 	advance_token(ctx); // consume (
 
@@ -497,7 +497,7 @@ ASTNode *parse_function(ParserContext *ctx) {
 
 	if (	ctx->cur_token->token_type != TOKEN_PUNCTUATOR 
 		|| 	ctx->cur_token->punc_type != PUNC_CLOSE_PAREN	) {
-		ERR_SYNTAX(ctx->cur_token, /* expected a */ "closing parenthesis ')' after function parameters");
+		ERR_SYNTAX_CTX(ctx->cl_ctx, ctx->cur_token, /* expected a */ "closing parenthesis ')' after function parameters", true);
 	}
 	advance_token(ctx); // consume )
 
@@ -506,7 +506,7 @@ ASTNode *parse_function(ParserContext *ctx) {
 		|| 	ctx->cur_token->punc_type != PUNC_OPEN_CURLY	) {
 			if (	ctx->cur_token->token_type != TOKEN_PUNCTUATOR 
 				|| 	ctx->cur_token->punc_type != PUNC_ARROW	) {
-				ERR_SYNTAX(ctx->cur_token, /* expected a */ "arrow before declaring function return type");
+				ERR_SYNTAX_CTX(ctx->cl_ctx, ctx->cur_token, /* expected a */ "arrow before declaring function return type", true);
 			}
 			advance_token(ctx); // consume ->
 		
@@ -514,7 +514,7 @@ ASTNode *parse_function(ParserContext *ctx) {
 				// this MAY be triggered later because we have no parsing for struct or non-primitive types yet, for instance if we had idk a user-defined Time struct later, this would call on
 				// fn foo(void) -> Time { ... }
 				// because Time is not primitive
-				ERR_SYNTAX(ctx->cur_token, /* expected a */ "valid type specifier for function return type");
+				ERR_SYNTAX_CTX(ctx->cl_ctx, ctx->cur_token, /* expected a */ "valid type specifier for function return type", true);
 			}
 		
 			TypeInfo* return_type = ctx->cur_token->typeinfo;
@@ -556,7 +556,7 @@ ASTNode *parse_if_statement(ParserContext *ctx) {
 
 	if (	ctx->cur_token->token_type != TOKEN_PUNCTUATOR 
 		|| 	ctx->cur_token->punc_type != PUNC_OPEN_PAREN	) {
-		ERR_SYNTAX(ctx->cur_token, /* expected a */ "open parenthesis '(' for if clause");
+		ERR_SYNTAX_CTX(ctx->cl_ctx, ctx->cur_token, /* expected a */ "open parenthesis '(' for if clause", true);
 	}
 	advance_token(ctx); // consume (
 	
@@ -565,7 +565,7 @@ ASTNode *parse_if_statement(ParserContext *ctx) {
 
 	if (	ctx->cur_token->token_type != TOKEN_PUNCTUATOR 
 		|| 	ctx->cur_token->punc_type != PUNC_CLOSE_PAREN	) {
-		ERR_SYNTAX(ctx->cur_token, /* expected a */ "close parenthesis ')' for if clause");
+		ERR_SYNTAX_CTX(ctx->cl_ctx, ctx->cur_token, /* expected a */ "close parenthesis ')' for if clause", true);
 	}
 	advance_token(ctx); // consume )
 
@@ -600,7 +600,7 @@ ASTNode *parse_while_statement(ParserContext *ctx) {
 
 	if (	ctx->cur_token->token_type != TOKEN_PUNCTUATOR 
 		|| 	ctx->cur_token->punc_type != PUNC_OPEN_PAREN	) {
-		ERR_SYNTAX(ctx->cur_token, /* expected a */ "open parenthesis '(' for while clause");
+		ERR_SYNTAX_CTX(ctx->cl_ctx, ctx->cur_token, /* expected a */ "open parenthesis '(' for while clause", true);
 	}
 	advance_token(ctx); // consume (
 
@@ -608,7 +608,7 @@ ASTNode *parse_while_statement(ParserContext *ctx) {
 
 	if (	ctx->cur_token->token_type != TOKEN_PUNCTUATOR 
 		|| 	ctx->cur_token->punc_type != PUNC_CLOSE_PAREN	) {
-		ERR_SYNTAX(ctx->cur_token, /* expected a */ "closing parenthesis ')' for end of while clause");
+		ERR_SYNTAX_CTX(ctx->cl_ctx, ctx->cur_token, /* expected a */ "closing parenthesis ')' for end of while clause", true);
 	}
 	advance_token(ctx); // consume )
 
@@ -632,7 +632,7 @@ ASTNode *parse_for_statement(ParserContext *ctx) {
 
 	if (	ctx->cur_token->token_type != TOKEN_PUNCTUATOR 
 		|| 	ctx->cur_token->punc_type != PUNC_OPEN_PAREN	) {
-		ERR_SYNTAX(ctx->cur_token, /* expected a */ "open parenthesis '(' for for clause");
+		ERR_SYNTAX_CTX(ctx->cl_ctx, ctx->cur_token, /* expected a */ "open parenthesis '(' for for clause", true);
 	}
 	advance_token(ctx); // consume (
 
@@ -675,16 +675,16 @@ ASTNode *parse_for_statement(ParserContext *ctx) {
 		advance_token(ctx);
 	}
 
-	else ERR_SYNTAX(ctx->cur_token, /* expected a */ "primitive type specifier (newly defined variable) or a predefined symbol identifier");
+	else ERR_SYNTAX_CTX(ctx->cl_ctx, ctx->cur_token, /* expected a */ "primitive type specifier (newly defined variable) or a predefined symbol identifier", true);
 
 	if (need_semicolon) {
 		if (!declared) {
-			ERR_SYNTAX(ctx->cur_token, /* expected a */ "an assignment in the initial step of the for loop");
+			ERR_SYNTAX_CTX(ctx->cl_ctx, ctx->cur_token, /* expected a */ "an assignment in the initial step of the for loop", true);
 		}
 		
 		if (	ctx->cur_token->token_type != TOKEN_PUNCTUATOR 
 			|| 	ctx->cur_token->punc_type != PUNC_SEMICOLON	) {
-			ERR_SYNTAX(ctx->cur_token, /* expected a */ "semicolon ';' for condition step of for clause");
+			ERR_SYNTAX_CTX(ctx->cl_ctx, ctx->cur_token, /* expected a */ "semicolon ';' for condition step of for clause", true);
 		}
 		advance_token(ctx); // consume ;
 	}
@@ -703,7 +703,7 @@ ASTNode *parse_for_statement(ParserContext *ctx) {
 
 		if (	ctx->cur_token->token_type != TOKEN_PUNCTUATOR 
 			|| 	ctx->cur_token->punc_type != PUNC_SEMICOLON	) {
-			ERR_SYNTAX(ctx->cur_token, /* expected a */ "semicolon ';' for increment step of for clause");
+			ERR_SYNTAX_CTX(ctx->cl_ctx, ctx->cur_token, /* expected a */ "semicolon ';' for increment step of for clause", true);
 		}
 		advance_token(ctx); // consume ;
 
@@ -717,7 +717,7 @@ ASTNode *parse_for_statement(ParserContext *ctx) {
 
 		if (	ctx->cur_token->token_type != TOKEN_PUNCTUATOR 
 			|| 	ctx->cur_token->punc_type != PUNC_CLOSE_PAREN	) {
-			ERR_SYNTAX(ctx->cur_token, /* expected a */ "closing parenthesis ')' for end of for clause");
+			ERR_SYNTAX_CTX(ctx->cl_ctx, ctx->cur_token, /* expected a */ "closing parenthesis ')' for end of for clause", true);
 		}
 		advance_token(ctx); // consume )
 
@@ -746,7 +746,7 @@ ASTNode *parse_for_statement(ParserContext *ctx) {
 	
 		if (	ctx->cur_token->token_type != TOKEN_PUNCTUATOR 
 			|| 	ctx->cur_token->punc_type != PUNC_DOTDOT	) {
-			ERR_SYNTAX(ctx->cur_token, /* expected a */ "'..' to demark ending for int value");
+			ERR_SYNTAX_CTX(ctx->cl_ctx, ctx->cur_token, /* expected a */ "'..' to demark ending for int value", true);
 		}
 
 		Token* dotdot_token = ctx->cur_token;
@@ -773,7 +773,7 @@ ASTNode *parse_for_statement(ParserContext *ctx) {
 
 		if (	ctx->cur_token->token_type != TOKEN_PUNCTUATOR 
 			|| 	ctx->cur_token->punc_type != PUNC_CLOSE_PAREN	) {
-			ERR_SYNTAX(ctx->cur_token, /* expected a */ "closing parenthesis ')' for end of for clause");
+			ERR_SYNTAX_CTX(ctx->cl_ctx, ctx->cur_token, /* expected a */ "closing parenthesis ')' for end of for clause", true);
 		}
 		advance_token(ctx); // consume )
 
@@ -792,7 +792,7 @@ ASTNode *parse_for_statement(ParserContext *ctx) {
 ASTNode *parse_block(ParserContext *ctx) {
 	if (	ctx->cur_token->token_type != TOKEN_PUNCTUATOR 
 		|| 	ctx->cur_token->punc_type != PUNC_OPEN_CURLY	) {
-		ERR_SYNTAX(ctx->cur_token, /* expected a */ "open curly '{' for block");
+		ERR_SYNTAX_CTX(ctx->cl_ctx, ctx->cur_token, /* expected a */ "open curly '{' for block", true);
 	}
 
 	ASTNode* block = new_node_general(NODE_BLOCK, ctx->cur_token);
@@ -821,7 +821,7 @@ ASTNode *parse_block(ParserContext *ctx) {
 
 	if (	ctx->cur_token->token_type != TOKEN_PUNCTUATOR 
 		|| 	ctx->cur_token->punc_type != PUNC_CLOSE_CURLY	) {
-		ERR_SYNTAX(ctx->cur_token, /* expected a */ "close curly '}' for block");
+		ERR_SYNTAX_CTX(ctx->cl_ctx, ctx->cur_token, /* expected a */ "close curly '}' for block", true);
 	}
 	advance_token(ctx); // consume }
 	
@@ -833,7 +833,7 @@ ASTNode *parse_return_statement(ParserContext *ctx) {
 	assert(ctx->cur_token->token_type == TOKEN_KEYWORD_RETURN);
 
 	if (ctx->cur_function == NULL) {
-		ERR_SYNTAX(ctx->cur_token, /* expected a */ "function to house 'return' statement (stray return)");
+		ERR_SYNTAX_CTX(ctx->cl_ctx, ctx->cur_token, /* expected a */ "function to house 'return' statement (stray return)", true);
 	}
 
 	Token* ref = ctx->cur_token;
@@ -848,7 +848,7 @@ ASTNode *parse_return_statement(ParserContext *ctx) {
 		&& 	ctx->cur_token->punc_type == PUNC_SEMICOLON		) {
 		
 		if (expected_return_type->type != TYPE_VOID) {
-			ERR_SYNTAX(ctx->cur_token, /* expected a */ "expression following 'return' for non-void function");
+			ERR_SYNTAX_CTX(ctx->cl_ctx, ctx->cur_token, /* expected a */ "expression following 'return' for non-void function", true);
 		}
 
 		advance_token(ctx);
@@ -860,7 +860,7 @@ ASTNode *parse_return_statement(ParserContext *ctx) {
 
 	if (	ctx->cur_token->token_type != TOKEN_PUNCTUATOR
 		|| 	ctx->cur_token->punc_type != PUNC_SEMICOLON		){
-		ERR_SYNTAX(ctx->cur_token, /* expected a */ "';' semicolon to end return statement");
+		ERR_SYNTAX_CTX(ctx->cl_ctx, ctx->cur_token, /* expected a */ "';' semicolon to end return statement", true);
 	}
 	advance_token(ctx);
 
@@ -878,7 +878,7 @@ ASTNode *parse_expr_statement(ParserContext *ctx) {
 	if (	ctx->cur_token->token_type != TOKEN_PUNCTUATOR
 		|| 	ctx->cur_token->punc_type != PUNC_SEMICOLON		){
 		// printf("%s %s", token_type_to_str(ctx->cur_token->token_type), punc_to_str(ctx->cur_token->punc_type));
-		ERR_SYNTAX(ctx->cur_token, /* expected a */ "';' semicolon to end expression statement");
+		ERR_SYNTAX_CTX(ctx->cl_ctx, ctx->cur_token, /* expected a */ "';' semicolon to end expression statement", true);
 	}
 
 	advance_token(ctx);
@@ -931,7 +931,7 @@ ASTNode *parse_variable_assignment(ParserContext *ctx) {
 
 			// this should call if you are doing something like 5 = 1 + 2
 			// i.e. lval is not a variable or member
-			ERR_SEMANTIC(ctx->cur_token, "attempted to assign a non-assignable lvalue");
+			ERR_SEMANTIC_CTX(ctx->cl_ctx, ctx->cur_token, "attempted to assign a non-assignable lvalue", true);
 		}
 
 		// here instead we do recursive call because assignment links right to left 
@@ -958,7 +958,7 @@ ASTNode *parse_variable_assignment(ParserContext *ctx) {
 			&&	left->node_type != NODE_MEMBER		) {
 			// this should call if you are doing something like 5 += 1
 			// i.e. lval is not a variable or member
-			ERR_SEMANTIC(ctx->cur_token, "attempted to assign a non-assignable lvalue");
+			ERR_SEMANTIC_CTX(ctx->cl_ctx, ctx->cur_token, "attempted to assign a non-assignable lvalue", true);
 		}
 
 		/*		
@@ -1256,7 +1256,7 @@ ASTNode* parse_postfix(ParserContext* ctx) {
 				advance_token(ctx);
 
 				if (ctx->cur_token->token_type != TOKEN_SYMBOL_IDENTIFIER) {
-					ERR_SYNTAX(ctx->cur_token, /* expected a */ "member identifier");
+					ERR_SYNTAX_CTX(ctx->cl_ctx, ctx->cur_token, /* expected a */ "member identifier", true);
 				}
 
 				left = new_node_memidentifier(left, ctx->cur_token->lexeme, ref);
@@ -1270,7 +1270,7 @@ ASTNode* parse_postfix(ParserContext* ctx) {
 
 				if (	ctx->cur_token->token_type != TOKEN_PUNCTUATOR 
 					|| 	ctx->cur_token->punc_type != PUNC_CLOSE_SQUARE	) {
-					ERR_SYNTAX(ctx->cur_token, /* expected a */ "closing square bracket ']'" );
+					ERR_SYNTAX_CTX(ctx->cl_ctx, ctx->cur_token, /* expected a */ "closing square bracket ']'" , true);
 				}
 
 				left = new_node_binary(NODE_INDEX, left, right, ref);
@@ -1280,7 +1280,7 @@ ASTNode* parse_postfix(ParserContext* ctx) {
 
 			case PUNC_OPEN_PAREN: {
 				if (ctx->cur_function_call == NULL) {
-					ERR_SYNTAX(ctx->cur_token, /* expected a */ "function to call");
+					ERR_SYNTAX_CTX(ctx->cl_ctx, ctx->cur_token, /* expected a */ "function to call", true);
 				}
 
 				left = parse_function_call(ctx, &left);
@@ -1317,7 +1317,7 @@ ASTNode* parse_else(ParserContext* ctx) {
 
 					if (	ctx->cur_token->token_type != TOKEN_PUNCTUATOR 
 						|| 	ctx->cur_token->punc_type != PUNC_CLOSE_PAREN	) {
-						ERR_SYNTAX(ctx->cur_token, /* expected a */ "closed expression, closed by ')'" );
+						ERR_SYNTAX_CTX(ctx->cl_ctx, ctx->cur_token, /* expected a */ "closed expression, closed by ')'" , true);
 					}
 					
 					advance_token(ctx);
@@ -1326,7 +1326,7 @@ ASTNode* parse_else(ParserContext* ctx) {
 
 				// the only reason you would get here is if you did something like x += y = 5
 				// this operation doesn't really make sense
-				case PUNC_ASSIGNMENT: ERR_SYNTAX(ctx->cur_token, /* expected a */ "non-assignment expression after a compound assignment operator" );
+				case PUNC_ASSIGNMENT: ERR_SYNTAX_CTX(ctx->cl_ctx, ctx->cur_token, /* expected a */ "non-assignment expression after a compound assignment operator" , true);
 				
 				default: break;
 			}
@@ -1358,13 +1358,13 @@ ASTNode* parse_else(ParserContext* ctx) {
 
 			if (type == NODE_VARIABLE) {
 				Symbol* sym = symbol_lookup(ctx->cur_scope, ctx->cur_token->lexeme);
-				if (sym == NULL) ERR_SYNTAX(ctx->cur_token, /* expected a */ "previously declared identifier in the scope");
+				if (sym == NULL) ERR_SYNTAX_CTX(ctx->cl_ctx, ctx->cur_token, /* expected a */ "previously declared identifier in the scope", true);
 				var_node->variable_symbol = sym;
 			}
 
 			else if (type == NODE_FUNCTION) {
 				ASTNode* fun = function_lookup(ctx, ctx->cur_token->lexeme);
-				if (fun == NULL) ERR_SYNTAX(ctx->cur_token, /* expected a */ "previously declared function in the scope");
+				if (fun == NULL) ERR_SYNTAX_CTX(ctx->cl_ctx, ctx->cur_token, /* expected a */ "previously declared function in the scope", true);
 				ctx->cur_function_call = fun;
 				var_node->function_name = fun->function_name;
 				var_node->function_return_type = fun->function_return_type;
@@ -1396,7 +1396,7 @@ ASTNode* parse_else(ParserContext* ctx) {
 		default: break;
 	}
 	
-	ERR_SYNTAX(ctx->cur_token, /* expected a */ "valid expression");
+	ERR_SYNTAX_CTX(ctx->cl_ctx, ctx->cur_token, /* expected a */ "valid expression", true);
 	return NULL;
 }
 
@@ -1440,15 +1440,15 @@ ASTNode* parse_function_call(ParserContext* ctx, ASTNode** rest) {
 	// printf("exp -> %lu\nactual -> %lu\n", expected_param_count, provided_arg_count);
 
 	if (provided_arg_count > expected_param_count) {
-		ERR_SEMANTIC(ctx->cur_token, /* expected a */ "provided too many function arguments in function call");
+		ERR_SEMANTIC_CTX(ctx->cl_ctx, ctx->cur_token, /* expected a */ "provided too many function arguments in function call", true);
 	}
 	else if (provided_arg_count < expected_param_count) {
-		ERR_SEMANTIC(ctx->cur_token, /* expected a */ "provided too few function arguments in function call");
+		ERR_SEMANTIC_CTX(ctx->cl_ctx, ctx->cur_token, /* expected a */ "provided too few function arguments in function call", true);
 	}
 
 	if (	ctx->cur_token->token_type != TOKEN_PUNCTUATOR 
 		|| 	ctx->cur_token->punc_type != PUNC_CLOSE_PAREN	) {
-		ERR_SYNTAX(ctx->cur_token, /* expected a */ "')' to close function arguments");
+		ERR_SYNTAX_CTX(ctx->cl_ctx, ctx->cur_token, /* expected a */ "')' to close function arguments", true);
 	}
 
 	advance_token(ctx);
