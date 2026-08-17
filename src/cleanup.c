@@ -29,6 +29,16 @@ void destroy_cleanup_context(CleanupContext* cl_ctx) {
     free(cl_ctx);
 }
 
+bool has_error_notice(CleanupContext* cl_ctx) {
+    if (cl_ctx->notices != NULL) {
+        Notice *end = cl_ctx->notices;
+		for (; end != NULL; end = end->next) {
+            if (end->type == NOTICE_ERROR) return true;
+        }
+    }
+    return false;
+}
+
 void append_new_notice(CleanupContext* cl_ctx, NoticeType type, bool requires_halt, const char* msg, ...) {
     if (!cl_ctx) return;
     if (!msg) return;

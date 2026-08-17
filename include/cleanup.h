@@ -24,6 +24,7 @@ typedef struct {
 
 CleanupContext* new_cleanup_context(void);
 void destroy_cleanup_context(CleanupContext* cl_ctx);
+bool has_error_notice(CleanupContext* cl_ctx);
 void append_new_notice(CleanupContext* cl_ctx, NoticeType type, bool requires_halt, const char* msg, ...);
 void compilation_exit(CleanupContext* cl_ctx, bool preemptive);
 

@@ -26,6 +26,10 @@ void destroy_compiler_context(CompilerContext* ctx) {
 	destroy_cleanup_context(ctx->cl_ctx);
 }
 
+void check_for_errors(CompilerContext* ctx) {
+	if (has_error_notice(ctx->cl_ctx)) compilation_exit(ctx->cl_ctx, true);
+}
+
 void print_help(void) {
 	printf(
 		"Usage: proglang <source file> [options]\n"
@@ -101,9 +105,11 @@ int main(int argc, char *argv[]) {
         ERR_GENERAL("Failed to read input file.");
 	}
 
-	Token *tokens = tokenize_file(ctx.filepath);
+	Token *tokens = tokenize_file(ctx.filepath, &ctx);
+	check_for_errors(&ctx);
 
 	ASTNode *ast = generate_ast(tokens, &ctx);
+	check_for_errors(&ctx);
 
 #ifdef DEBUG
 	if (ctx.flags & CF_AST_TRACE) {
@@ -113,6 +119,7 @@ int main(int argc, char *argv[]) {
 #endif
 
 	IRInstruction* ir_list = ast_to_ir(ast, &ctx);
+	check_for_errors(&ctx);
 
 #ifdef DEBUG
 	if (ctx.flags & CF_IR_TRACE) {

@@ -1,5 +1,4 @@
-#include "../include/lexer.h"
-#include "../include/base.h"
+#include "lexer.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -86,15 +85,14 @@ Token* new_token(
     TokenType token_type, 
     char* start_pointer, 
     char* end_pointer,
-    FileInfo* source,
-    uint64_t line_number) 
-{
+    LexerContext* l_ctx
+) {
     Token* tok = calloc(1, sizeof(Token));
     tok->token_type = token_type;
     tok->location = start_pointer;
     tok->length = end_pointer - start_pointer;
-    tok->source = source;
-    tok->line_number = line_number;
+    tok->source = l_ctx->cur_source;
+    tok->line_number = l_ctx->cur_linenum;
 
     tok->punc_type = PUNC_INVALID;
     tok->int_val = (uint64_t)0;
@@ -104,7 +102,7 @@ Token* new_token(
     return tok;
 }
 
-Token* read_num_literal(FileInfo* source, char* pointer, uint64_t* line_num) {
+Token* read_num_literal(LexerContext* l_ctx, char* pointer) {
     char* start = pointer++;
     bool is_float = false;
 
@@ -129,7 +127,7 @@ Token* read_num_literal(FileInfo* source, char* pointer, uint64_t* line_num) {
     }
 
     TokenType type = is_float ? TOKEN_FLOAT_LITERAL : TOKEN_INT_LITERAL;
-    Token* tok = new_token(type, start, pointer, source, *line_num);
+    Token* tok = new_token(type, start, pointer, l_ctx);
 
     char* end; // dont actually need this for lexer but required for strtold and strtoull
     if (is_float) {
@@ -141,17 +139,39 @@ Token* read_num_literal(FileInfo* source, char* pointer, uint64_t* line_num) {
     return tok;
 }
 
-char* find_string_end(char* pointer) {
-    char* start = pointer;
+char* find_string_end(LexerContext* l_ctx, char* pointer, bool* terminated) {
+    *terminated = true;
     while (*pointer != '"') {
-        if (CHR_IS_NEWLINE(*pointer) || *pointer == '\0') ERR_GENERAL("Unclosed string literal at %p", start);
-        if (*pointer == '\\') pointer++;
+        if (CHR_IS_NEWLINE(*pointer) || *pointer == '\0') {
+            ERR_GENERAL_CTX(l_ctx->cl_ctx, "%s:%lu:\tUnclosed string literal.", l_ctx->cur_source->filepath, l_ctx->cur_linenum);
+            *terminated = false;
+            return pointer;
+        }
+
+        if (*pointer == '\\') {
+            // prevent stepping over the terminator
+            if (*(pointer + 1) == '\0' || CHR_IS_NEWLINE(*(pointer + 1))) {
+                ERR_GENERAL_CTX(l_ctx->cl_ctx, "%s:%lu:\tUnclosed string literal.", l_ctx->cur_source->filepath, l_ctx->cur_linenum);
+                *terminated = false;
+                return pointer;
+            }
+
+            pointer++;
+        }
+        
         pointer++;
     }
     return pointer;
 }
 
-uint64_t read_escaped_char(char* pointer, char** end) {
+uint64_t read_escaped_char(LexerContext* l_ctx, char* pointer, char** end) {
+    // prevent stepping over the terminator
+    if (*pointer == '\0') {
+        ERR_GENERAL_CTX(l_ctx->cl_ctx, "%s:%lu:\tUnterminated escape sequence.", l_ctx->cur_source->filepath, l_ctx->cur_linenum);
+        *end = pointer;
+        return (uint64_t)0;
+    }
+
     // octal case
     size_t i = 0;
     uint64_t out = 0;
@@ -172,7 +192,9 @@ uint64_t read_escaped_char(char* pointer, char** end) {
     if (*pointer == 'x') {
         pointer++;
         if (!isxdigit((unsigned char)*pointer)) {
-            ERR_GENERAL("Invalid hex escape character at %p", pointer);
+            ERR_GENERAL_CTX(l_ctx->cl_ctx, "%s:%lu:\tInvalid hex escape sequence.", l_ctx->cur_source->filepath, l_ctx->cur_linenum);
+            *end = pointer;
+            return (uint64_t)0;
         }
 
         size_t hex_digits = 0;
@@ -185,7 +207,7 @@ uint64_t read_escaped_char(char* pointer, char** end) {
 
         // give a warning if an overflow could've happened
         if (hex_digits >= 16) {
-            WARN_GENERAL("Hex digit overflow, ignoring superflous hex digits at %p", pointer);
+            WARN_CTX(l_ctx->cl_ctx, "%s:%lu:\tHex digit overflow, ignoring superflous hex digits.", l_ctx->cur_source->filepath, l_ctx->cur_linenum);
         }
 
         *end = pointer;
@@ -209,20 +231,28 @@ uint64_t read_escaped_char(char* pointer, char** end) {
     ERR_GENERAL("Unreachable");
 }
 
-Token* read_string_literal(FileInfo* source, char* pointer, uint64_t* line_num) {
+Token* read_string_literal(LexerContext* l_ctx, char* pointer) {
     char* start = pointer;
     
-    char* end = find_string_end(pointer + 1);
+    bool terminated = false;
+    char* end = find_string_end(l_ctx, pointer + 1, &terminated);
     char* buffer = calloc(1, end - pointer);
     int buf_index = 0;
 
     char* p2 = pointer + 1;
     while (p2 < end) {
-        if (*p2 == '\\') buffer[buf_index++] = read_escaped_char(p2 + 1, &p2);
+        if (*p2 == '\\') buffer[buf_index++] = read_escaped_char(l_ctx, p2 + 1, &p2);
         else buffer[buf_index++] = *p2++; 
     }
 
-    Token* tok = new_token(TOKEN_STRING_LITERAL, start, end + 1, source, *line_num);
+    // don't consume new line
+    char* tok_end = end + 1;
+    if (!terminated) {
+        tok_end = end;
+        while (*tok_end != '\0' && !CHR_IS_NEWLINE(*tok_end)) tok_end++;
+    }
+
+    Token* tok = new_token(TOKEN_STRING_LITERAL, start, tok_end, l_ctx);
     tok->str_val = buffer;
     return tok;
 }
@@ -234,29 +264,41 @@ uint8_t hex_to_int(uint8_t hex_char) {
     ERR_GENERAL("Unreachable");
 }
 
-Token* read_char_literal(FileInfo* source, char* pointer, uint64_t* line_num) {
+Token* read_char_literal(LexerContext* l_ctx, char* pointer) {
     char* start_char = pointer + 1;
-    if (*start_char == '\0' || *start_char == '\'') {
-        ERR_GENERAL("Invalid or empty char literal at %p", start_char);
+    if (*start_char == '\0' || CHR_IS_NEWLINE(*start_char) || *start_char == '\'') {
+        ERR_GENERAL_CTX(l_ctx->cl_ctx, "%s:%lu:\tInvalid or empty char literal.", l_ctx->cur_source->filepath, l_ctx->cur_linenum);
+
+        char* empty_end = (*start_char == '\'') ? start_char + 1 : start_char;
+        Token* broken = new_token(TOKEN_INT_LITERAL, pointer, empty_end, l_ctx);
+        broken->int_val = (uint64_t)0;
+        return broken;
     }
 
     uint64_t value = 0;
     char* next = start_char;
 
     if (*start_char == '\\') {
-        value = read_escaped_char(start_char + 1, &next);
+        value = read_escaped_char(l_ctx, start_char + 1, &next);
     }
     else {
         value = (unsigned char)(*start_char);
         next = start_char + 1;
     }
 
-    char* end = strchr(next, '\'');
-    if (!end) {
-        ERR_GENERAL("Unclosed char literal at %p", next);
+    // keep track of unclosed literal up until new line then just forget about it
+    char* end = next;
+    while (*end != '\'' && *end != '\0' && !CHR_IS_NEWLINE(*end)) end++;
+
+    if (*end != '\'') {
+        ERR_GENERAL_CTX(l_ctx->cl_ctx, "%s:%lu:\tUnclosed char literal.", l_ctx->cur_source->filepath, l_ctx->cur_linenum);
+
+        Token* broken = new_token(TOKEN_INT_LITERAL, pointer, end, l_ctx);
+        broken->int_val = value;
+        return broken;
     }
 
-    Token* tok = new_token(TOKEN_INT_LITERAL, pointer, end + 1, source, *line_num);
+    Token* tok = new_token(TOKEN_INT_LITERAL, pointer, end + 1, l_ctx);
     tok->int_val = value;
     return tok;
 }
@@ -349,8 +391,8 @@ TokenType get_identifier_type(char* pointer, size_t len, Type* type, bool* is_un
     return TOKEN_SYMBOL_IDENTIFIER;
 }
 
-#define LEGAL_IDENTIFIER_START(c)       isalpha(c) || (c) == '_'
-#define LEGAL_IDENTIFIER_TAIL(c)        isalnum(c) || (c) == '_'
+#define LEGAL_IDENTIFIER_START(c)       (isalpha(c) || (c) == '_')
+#define LEGAL_IDENTIFIER_TAIL(c)        (isalnum(c) || (c) == '_')
 
 size_t read_identifier(char *start) {
     char *pointer = start;
@@ -386,15 +428,21 @@ size_t get_type_size(Type* type) {
     return 0;
 }
 
-Token* tokenize(FileInfo* source) {
-    char* pointer = source->contents;
-    // start from beginning of file
+Token* tokenize(FileInfo* source, CompilerContext* c_ctx) {
+    // initialise lexer context
+    LexerContext l_ctx = {
+        .cur_source = source,
+        .cl_ctx = c_ctx->cl_ctx,
+        .cur_linenum = (uint64_t)1,
+    };
 
+    // start from beginning of file
+    char* pointer = source->contents;
+
+    // start a linked list
     Token head = {};
     Token* cur = &head;
-    // start a linked list
 
-    uint64_t line_num = 1;
     while (*pointer) {
         // skip comments
         if (STR_STARTS_WITH(pointer, "//")) {
@@ -407,7 +455,7 @@ Token* tokenize(FileInfo* source) {
 
         // skip newline
         if (CHR_IS_NEWLINE(*pointer)) {
-            line_num++;
+            l_ctx.cur_linenum++;
             pointer++;
             continue;
         }
@@ -420,21 +468,21 @@ Token* tokenize(FileInfo* source) {
 
         // check for numeric type token
         if (isdigit(*pointer) || (*pointer == '.' && isdigit(*(pointer + 1)))) {
-            cur = cur->next = read_num_literal(source, pointer, &line_num);
+            cur = cur->next = read_num_literal(&l_ctx, pointer);
             pointer += cur->length; // advance the pointer
             continue;
         }
 
         // string literal
         if (*pointer == '"') {
-            cur = cur->next = read_string_literal(source, pointer, &line_num);
+            cur = cur->next = read_string_literal(&l_ctx, pointer);
             pointer += cur->length;
             continue;
         }
 
         // character literal
         if (*pointer == '\'') {
-            cur = cur->next = read_char_literal(source, pointer, &line_num);
+            cur = cur->next = read_char_literal(&l_ctx, pointer);
             cur->int_val = (char)cur->int_val;
             pointer += cur->length;
             continue;
@@ -448,7 +496,7 @@ Token* tokenize(FileInfo* source) {
 
             TokenType token_type = get_identifier_type(pointer, identifier_len, &primitive_type, &is_unsigned);
 
-            Token* new_tok = new_token(token_type, pointer, pointer + (int)identifier_len, source, line_num);
+            Token* new_tok = new_token(token_type, pointer, pointer + (int)identifier_len, &l_ctx);
 
             if (token_type == TOKEN_PRIMITIVE_TYPE_SPECIFIER) {
                 new_tok->typeinfo = calloc(1, sizeof(TypeInfo));
@@ -486,26 +534,27 @@ Token* tokenize(FileInfo* source) {
         size_t punctuator_len = 0;
         Punctuator punc_type = read_punctuator(pointer, &pointer, &punctuator_len);
         if (punc_type != PUNC_INVALID && punctuator_len != 0) {
-            Token* new_tok = new_token(TOKEN_PUNCTUATOR, pointer - (int)punctuator_len, pointer, source, line_num);
+            Token* new_tok = new_token(TOKEN_PUNCTUATOR, pointer - (int)punctuator_len, pointer, &l_ctx);
             new_tok->punc_type = punc_type;
             cur = cur->next = new_tok;
             continue;
         }
 
-        ERR_GENERAL("Invalid token at %p (character '%c')", pointer, *pointer);
+        ERR_GENERAL_CTX(l_ctx.cl_ctx, "%s:%lu:\tInvalid token (character '%c').", l_ctx.cur_source->filepath, l_ctx.cur_linenum, *pointer);
+        pointer++;
     }
 
-    cur = cur->next = new_token(TOKEN_EOF, pointer, pointer, source, line_num);
+    cur = cur->next = new_token(TOKEN_EOF, pointer, pointer, &l_ctx);
     return head.next;
 }
 
-Token* tokenize_file(char* filepath) {
+Token* tokenize_file(char* filepath, CompilerContext* c_ctx) {
     FileInfo* info = new_fileinfo(filepath);
     if (!info) {
-        ERR_GENERAL("Failed to tokenize file.");
+        ERR_HALT_CTX(c_ctx->cl_ctx, "Failed to read source file '%s'.", filepath);
         return NULL;
     }
-    return tokenize(info);
+    return tokenize(info, c_ctx);
 }
 
 size_t get_token_count(Token *head) {

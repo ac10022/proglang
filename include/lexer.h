@@ -5,6 +5,8 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include "file.h"
+#include "cleanup.h"
+#include "base.h"
 
 typedef enum {
     TOKEN_KEYWORD_FUNCTION,
@@ -135,22 +137,29 @@ struct Token {
     uint16_t length;        // length of token (as a string)
 };
 
-Token *new_token(TokenType token_type, char *start_pointer, char *end_pointer, FileInfo *source, uint64_t line_number);
+typedef struct {
+    FileInfo* cur_source;
+    uint64_t cur_linenum;
 
-Token *read_num_literal(FileInfo *source, char *pointer, uint64_t *line_num);
+    CleanupContext* cl_ctx;
+} LexerContext;
 
-Token* read_string_literal(FileInfo* source, char* pointer, uint64_t* line_num);
-char* find_string_end(char* pointer);
+Token* new_token(TokenType token_type, char* start_pointer, char* end_pointer, LexerContext* l_ctx);
+
+Token* read_num_literal(LexerContext* l_ctx, char* pointer);
+
+Token* read_string_literal(LexerContext* l_ctx, char* pointer);
+char* find_string_end(LexerContext* l_ctx, char* pointer, bool* terminated);
 uint8_t hex_to_int(uint8_t hex_char);
-Token *read_char_literal(FileInfo *source, char *pointer, uint64_t *line_num);
-uint64_t read_escaped_char(char* pointer, char** end);
+Token* read_char_literal(LexerContext* l_ctx, char* pointer);
+uint64_t read_escaped_char(LexerContext* l_ctx, char* pointer, char** end);
 
 size_t read_identifier(char *start);
 
 size_t get_type_size(Type* type);
 
-Token *tokenize(FileInfo *source);
-Token *tokenize_file(char *filepath);
+Token *tokenize(FileInfo *source, CompilerContext* c_ctx);
+Token *tokenize_file(char *filepath, CompilerContext* c_ctx);
 size_t get_token_count(Token *head);
 
 #define SET_TYPE_VOID(typeinfo_ptr) \

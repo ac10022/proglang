@@ -32,7 +32,15 @@ enum {
  * CONSTANTS
  */
 
-#define MAX_BUFFER_LENGTH 4096
+#define MAX_BUFFER_LENGTH   4096
+
+#define ANSI_COLOR_RED      "\x1b[31m"
+#define ANSI_COLOR_GREEN    "\x1b[32m"
+#define ANSI_COLOR_YELLOW   "\x1b[33m"
+#define ANSI_COLOR_BLUE     "\x1b[34m"
+#define ANSI_COLOR_MAGENTA  "\x1b[35m"
+#define ANSI_COLOR_CYAN     "\x1b[36m"
+#define ANSI_COLOR_RESET    "\x1b[0m"
 
 /*
  * MACROS
@@ -64,29 +72,29 @@ enum {
 
 #define ERR_GENERAL_CTX(cl_ctx, fmt, ...) \
     do { \
-        append_new_notice((cl_ctx), NOTICE_ERROR, false, "ERROR:\t" fmt "\n", ##__VA_ARGS__); \
+        append_new_notice((cl_ctx), NOTICE_ERROR, false, ANSI_COLOR_RED"ERROR"ANSI_COLOR_RESET":    " fmt "\n", ##__VA_ARGS__); \
     } while (0)
 
 #define ERR_HALT_CTX(cl_ctx, fmt, ...) \
     do { \
-        append_new_notice((cl_ctx), NOTICE_ERROR, true, "ERROR:\t" fmt "\n", ##__VA_ARGS__); \
+        append_new_notice((cl_ctx), NOTICE_ERROR, true, ANSI_COLOR_RED"ERROR"ANSI_COLOR_RESET":    " fmt "\n", ##__VA_ARGS__); \
     } while (0)
 
 #define ERR_SYNTAX_CTX(cl_ctx, tok_deref, expected, exit) \
     do { \
-        append_new_notice((cl_ctx), NOTICE_ERROR, (exit), "%s:%lu:\tSyntax error; expected " expected ", got '%.*s'.\n", \
+        append_new_notice((cl_ctx), NOTICE_ERROR, (exit), ANSI_COLOR_RED"ERROR"ANSI_COLOR_RESET":    %s:%lu:\tSyntax error; expected " expected ", got '%.*s'.\n", \
             (tok_deref)->source->filepath, (tok_deref)->line_number, TOK_STR_VAL(tok_deref)); \
     } while (0)
 
 #define ERR_SEMANTIC_CTX(cl_ctx, tok_deref, msg, exit) \
     do { \
-        append_new_notice((cl_ctx), NOTICE_ERROR, (exit), "%s:%lu:\tSemantic error; " msg ", got '%.*s'.\n", \
+        append_new_notice((cl_ctx), NOTICE_ERROR, (exit), ANSI_COLOR_RED"ERROR"ANSI_COLOR_RESET":    %s:%lu:\tSemantic error; " msg ", got '%.*s'.\n", \
             (tok_deref)->source->filepath, (tok_deref)->line_number, TOK_STR_VAL(tok_deref)); \
     } while (0)
 
 #define WARN_CTX(cl_ctx, fmt, ...) \
     do { \
-        append_new_notice((cl_ctx), NOTICE_WARNING, false, "WARNING:\t" fmt "\n", ##__VA_ARGS__); \
+        append_new_notice((cl_ctx), NOTICE_WARNING, false, ANSI_COLOR_BLUE"WARNING"ANSI_COLOR_RESET":  " fmt "\n", ##__VA_ARGS__); \
     } while (0)
 
 #define DEBUG_TOKEN_STR(tok) printf("%.*s\n", TOK_STR_VAL(tok))

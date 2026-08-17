@@ -1,0 +1,17 @@
+fn main() -> i32 {
+    i32 _ok = 10;
+
+    char* s1 = "unclosed string;            // ERROR: unclosed string literal
+    i32 after_string = 1;
+
+    char c1 = '';                           // ERROR: invalid or empty char literal
+    char c2 = 'a;                           // ERROR: unclosed char literal
+    i32 after_chars = 2;
+
+    char c3 = '\xz';                        // ERROR: invalid hex escape sequence
+    char* s2 = "\x11111111111111111111";    // WARNING: hex digit overflow
+
+    i32 bad = 5 # 3 @ 1 ` 0 $ 7;            // ERROR: invalid token
+
+    return 0;
+}
