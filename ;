@@ -12,7 +12,6 @@ set(SOURCES
 	src/main.c
 	src/optimiser.c
 	src/cleanup.c
-	src/codegen.c
 )
 
 add_executable(proglang ${SOURCES})
