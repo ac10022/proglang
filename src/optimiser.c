@@ -503,7 +503,6 @@ IROperand lower_expr(OptimiserContext* ctx, ASTNode* node) {
 
         // idk yet
         case NODE_COND:
-        case NODE_COMMA:
         case NODE_MEMBER:
         default: 
 #ifdef DEBUG

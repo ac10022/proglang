@@ -28,7 +28,6 @@ typedef enum {
     NODE_GE,        // >=
     NODE_ASSIGN,    // =
     NODE_COND,      // ?:
-    NODE_COMMA,     // ,
     NODE_MEMBER,    // . (struct member access)
     NODE_ADDR,      // unary &
     NODE_DEREF,     // unary *
