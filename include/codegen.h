@@ -9,6 +9,7 @@ enum Target {
     ARM64
 };
 
+char *create_asm_outpath(char *filepath);
 void generate_asm(IRInstruction* ir_instruction, CompilerContext* c_ctx);
 
 #endif //CODEGEN_H

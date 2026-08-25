@@ -55,16 +55,18 @@ int main(int argc, char *argv[]) {
 	 *	-S			Generate assembly file instead of compiled binary.
 	 *	-O			Use optimisations.
 	 *  -h			Show help menu.
-	 * 
+	 *
+	 *  -o			Specify out file name
+	 *
 	 * 	(DEBUG only options)
 	 * 	-a			[DEBUG] Show AST after parsing.
 	 * 	-i			[DEBUG] Show IR instruction list after optimising.
 	 */
 
 #ifndef DEBUG
-	char* optstring = "SOh";
+	char* optstring = "SOho:";
 #else
-	char* optstring = "SOaih";
+	char* optstring = "SOaiho:";
 #endif
 
 	int opt = 0;
@@ -85,6 +87,11 @@ int main(int argc, char *argv[]) {
 				return EXIT_SUCCESS;
 			}
 
+			case 'o': {
+				ctx.outpath = optarg;
+				break;
+			}
+
 			default: {
 				fprintf(stderr, "Usage: proglang <source file> [options: see -h]\n");
 				return EXIT_FAILURE;
@@ -99,6 +106,9 @@ int main(int argc, char *argv[]) {
     }
 
 	ctx.filepath = argv[optind];
+	if (!ctx.outpath) {
+		ctx.outpath = "a.out";
+	}
 
 	if (!check_file_exists(ctx.filepath)) {
 		fprintf(stderr, "Usage: proglang <source file> [options: see -h]\n");
