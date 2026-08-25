@@ -141,17 +141,15 @@ void lower(OptimiserContext* ctx, ASTNode* node) {
         case NODE_VARAIBLE_DECLARATION: {
             // case with no initialiser (e.g., i32 x; )
             if (!node->r_value) break;
-            
-            // case with initialiser (e.g., i32 x = 10; )
-            else {
-                IROperand rhs = lower_expr(ctx, node->r_value);
-                IROperand lhs = (IROperand) {
-                    .type = IROP_SYMBOL,
-                    .sym = node->l_value->variable_symbol,
-                };
 
-                emit(ctx, IR_ASSIGN, lhs, rhs, IROPERAND_EMPTY);
-            }
+            // case with initialiser (e.g., i32 x = 10; )
+            IROperand rhs = lower_expr(ctx, node->r_value);
+            IROperand lhs = (IROperand) {
+                .type = IROP_SYMBOL,
+                .sym = node->l_value->variable_symbol,
+            };
+
+            emit(ctx, IR_ASSIGN, lhs, rhs, IROPERAND_EMPTY);
 
             break;
         }
