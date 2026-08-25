@@ -5,6 +5,7 @@ project(proglang)
 add_compile_options(-Wall -Wextra -Wno-psabi -Wno-unused-parameter -Wno-unused-variable)
 #											 ^^^ 				   ^^^ remove these when project is done
 
+# add only sources here
 set(SOURCES
 	src/file.c
 	src/lexer.c
@@ -17,6 +18,9 @@ set(SOURCES
 
 add_executable(proglang ${SOURCES})
 
+# this will tell compiler to look into proglang/include/ if it sees
+#	#include "lexer.h"
+# so no need to add headers into SOURCES
 target_include_directories(proglang
     PRIVATE 
         ${PROJECT_SOURCE_DIR}/include
