@@ -21,6 +21,9 @@ add_executable(proglang ${SOURCES})
 # this will tell compiler to look into proglang/include/ if it sees
 #	#include "lexer.h"
 # so no need to add headers into SOURCES
+#
+# it also makes project independent from include paths, i.e.
+# 	#include "../include/lexer.h"
 target_include_directories(proglang
     PRIVATE 
         ${PROJECT_SOURCE_DIR}/include
