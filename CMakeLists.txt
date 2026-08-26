@@ -16,7 +16,9 @@ set(SOURCES
 	src/codegen.c
 )
 
-add_executable(proglang ${SOURCES})
+add_executable(proglang ${SOURCES}
+ src/arena.c
+ include/arena.h)
 
 # this will tell compiler to look into proglang/include/ if it sees
 #	#include "lexer.h"
