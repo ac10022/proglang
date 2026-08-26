@@ -1,14 +1,9 @@
-fn f(i32 i) -> i32 { }
-fn g(i32 i) -> i32 { }
-fn h(i32 i) -> i32 { }
-
-fn main(void) {
-    i32 val = 0;
-    for (u32 i in 10..20) {
-        val++;
-        i = g(i);
-    }
-    i32 res = f(g(h(1)));
+fn sum(i32 a, i32 b) {
+    return a + b;
 }
 
-return res;
+fn main(void) {
+    i32 a = 10;
+    i32 b = 20;
+    i32 val = sum(a, b+5);
+}

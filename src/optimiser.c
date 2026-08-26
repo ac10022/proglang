@@ -65,6 +65,32 @@ IROperation node_to_irop(NodeType type) {
         case NODE_LE:           return IR_LE;
         case NODE_GT:           return IR_GT;
         case NODE_GE:           return IR_GE;
+
+        case NODE_NULL_EXPR:
+        case NODE_ASSIGN:
+        case NODE_COND:
+        case NODE_MEMBER:
+        case NODE_NOT:
+
+        case NODE_RETURN:
+        case NODE_IF:
+        case NODE_FOR:
+        case NODE_SWITCH:
+        case NODE_CASE:
+        case NODE_BLOCK:
+        case NODE_INDEX:
+        
+        case NODE_EXPR_STMT:
+        case NODE_VARIABLE:
+        case NODE_VARIABLE_VALUE:
+        case NODE_FUNCTION_DECLARATION:
+        case NODE_FUNCTION:
+        case NODE_VARAIBLE_DECLARATION:
+        case NODE_PARAMETER:
+        case NODE_LITERAL_INT:
+        case NODE_LITERAL_FLOAT:
+        case NODE_LITERAL_STRING:
+        case NODE_FUNCTION_CALL:
         
         default:                TODO("implement this irop");
     }
@@ -298,9 +324,8 @@ void lower(OptimiserContext* ctx, ASTNode* node) {
         }
 
         case NODE_SWITCH:
-        case NODE_FUNCTION_CALL:
-        case NODE_FUNCTION_DECLARATION:
-            TODO("lower switch/function calls");
+            TODO("lower switch statement calls");
+            break;
 
         default:
             lower_expr(ctx, node);
@@ -408,8 +433,17 @@ IROperand lower_expr(OptimiserContext* ctx, ASTNode* node) {
                 ERR_SEMANTIC(node->token, "cannot increment/decrement non-variable value");
             }
 
-            if (node->node_type == NODE_INCREMENT) emit(ctx, IR_ADD, lhs, lhs, rhs);
-            if (node->node_type == NODE_DECREMENT) emit(ctx, IR_SUB, lhs, lhs, rhs);
+            IROperand temp = new_temp(ctx);
+
+            if (node->node_type == NODE_INCREMENT) {
+                emit(ctx, IR_ADD, temp, lhs, rhs);
+                emit(ctx, IR_ASSIGN, lhs, temp, IROPERAND_EMPTY);
+            }
+            else if (node->node_type == NODE_DECREMENT) {
+                emit(ctx, IR_SUB, temp, lhs, rhs);
+                emit(ctx, IR_ASSIGN, lhs, temp, IROPERAND_EMPTY);
+            }    
+
             return lhs;
         }
 
@@ -497,6 +531,58 @@ IROperand lower_expr(OptimiserContext* ctx, ASTNode* node) {
              *
              * so if either is true, we skip the res = false step
              */
+        }
+
+        case NODE_FUNCTION_CALL: {
+
+            /*
+             * on getting something like add(1, 2);
+             * we want to first push the arguments onto the parameter stack
+             * so we will lower each of the arguments, then use IR_PARAM to specify that we push them onto the stack
+             * then we IR_CALL the function we want to perform, specifying how many arguments we need to pop from the stack in order to do so
+             * 
+             * so for example add(1, 2);
+             * translates to:
+             * 
+             *                      // param stack = []
+             * PARAM 1              // param stack = [1]
+             * PARAM 2              // param stack = [1, 2]
+             * $t = CALL add, 2     // call arg, using 2 popped arguments from the param stack, then store the result in temp var $t
+             * 
+             * then if further we had i32 x = add(1, 2);
+             * we would have one final concluding instruction
+             * x = $t
+             * 
+             */
+
+            ASTNode* func_to_call = node->function_to_call;
+            size_t param_count = function_get_param_count(func_to_call);
+
+            IROperand fn = (IROperand) {
+                .type = IROP_FUNC,
+                .func_name = func_to_call->function_name,
+            };
+            
+            ASTNode* args = node->body;
+
+            // iterate through the provided arguments and push them onto the param stack
+            for (size_t i = 0; i < param_count; i++) {
+                emit(ctx, IR_PARAM, lower_expr(ctx, args), IROPERAND_EMPTY, IROPERAND_EMPTY);
+                args = args->next;
+            }
+
+            // ensure we have engulfed all arguments, this is essentially double checking arg_count == param_count
+            assert(args == NULL);
+
+            IROperand params_to_pop = (IROperand) {
+                .type = IROP_CONST_INT,
+                .int_val = param_count,
+            };
+
+            IROperand res = new_temp(ctx);
+            emit(ctx, IR_CALL, res, fn, params_to_pop);
+
+            return res;
         }
 
         // idk yet
@@ -629,12 +715,19 @@ void print_ir(IRInstruction* instruction) {
     } else if (instruction->op == IR_END_FUNC) {
         printf("END FUNCTION ");
         print_ir_operand(instruction->dest);
+        printf("\n");
     } else if (instruction->op == IR_RETURN) {
         printf("RETURN ");
         print_ir_operand(instruction->src1);
     } else if (instruction->op == IR_PARAM) {
         printf("PARAM ");
         print_ir_operand(instruction->dest);
+    } else if (instruction->op == IR_CALL) {
+        print_ir_operand(instruction->dest);
+        printf("=CALL ");
+        print_ir_operand(instruction->src1);
+        printf(", ");
+        print_ir_operand(instruction->src2);
     } else {
         print_ir_operand(instruction->dest);
         printf("=");

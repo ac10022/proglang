@@ -1414,6 +1414,7 @@ ASTNode* parse_function_call(ParserContext* ctx, ASTNode** rest) {
 	func_call->l_value = *rest;
 	func_call->node_type = NODE_FUNCTION_CALL;
 	func_call->token = ref;
+	func_call->function_to_call = cur_func_call; 
 
 	ASTNode* args = NULL;
 	size_t provided_arg_count = 0;
