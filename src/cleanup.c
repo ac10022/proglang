@@ -80,6 +80,7 @@ void append_new_notice(CleanupContext* cl_ctx, NoticeType type, bool requires_ha
 }
 
 void print_all_notices(CleanupContext* cl_ctx) {
+    printf("\n");
     if (cl_ctx->notices != NULL) {
         Notice *end = cl_ctx->notices;
 		for (; end != NULL; end = end->next) printf("%s", end->message);

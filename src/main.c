@@ -1,7 +1,8 @@
 #include "../include/proglang.h"
 
 #include <unistd.h>
-extern int optind; // optind from unistd
+extern int optind;  	// optind from getoptcore
+extern char *optarg; 	// optarg from getoptcore
 
 /*
  * TODO:
@@ -35,13 +36,20 @@ void print_help(void) {
 		"Usage: proglang <source file> [options]\n"
 		"\n"
 		"Compiler options:\n"
+	/* single character, boolean flags */
 		"  -S\tGenerate assembly file instead of compiled binary.\n"
 		"  -O\tUse optimisations.\n"
+		"\n"
+	/* string flags, i.e. user must specify a string */
+		"  -o\tSpecify out file name.\n"
+		"\n"
 #ifdef DEBUG
+	/* debug only flags */
 		"  -a\t[DEBUG] Show AST after parsing.\n"
 		"  -i\t[DEBUG] Show IR after optimising.\n"
 #endif
 		"\n"
+	/* help flags */
 		"  -h\tShow help menu.\n"
 	);
 }
@@ -56,7 +64,7 @@ int main(int argc, char *argv[]) {
 	 *	-O			Use optimisations.
 	 *  -h			Show help menu.
 	 *
-	 *  -o			Specify out file name
+	 *  -o			Specify out file name.
 	 *
 	 * 	(DEBUG only options)
 	 * 	-a			[DEBUG] Show AST after parsing.
@@ -94,7 +102,7 @@ int main(int argc, char *argv[]) {
 
 			default: {
 				fprintf(stderr, "Usage: proglang <source file> [options: see -h]\n");
-				return EXIT_FAILURE;
+				ERR_HALT_CTX(ctx.cl_ctx, "Unknown argument.");
 			}
 		}
 	}
@@ -102,17 +110,23 @@ int main(int argc, char *argv[]) {
 	assert(optind >= 0);
 	if (optind >= argc) {
         fprintf(stderr, "Usage: proglang <source file> [options: see -h]\n");
-        ERR_GENERAL("No input file provided.");
+        ERR_HALT_CTX(ctx.cl_ctx, "No input file provided.");
     }
 
 	ctx.filepath = argv[optind];
-	if (!ctx.outpath) {
-		ctx.outpath = "a.out";
-	}
 
 	if (!check_file_exists(ctx.filepath)) {
 		fprintf(stderr, "Usage: proglang <source file> [options: see -h]\n");
-        ERR_GENERAL("Failed to read input file.");
+        ERR_HALT_CTX(ctx.cl_ctx, "Failed to read input file.");
+	}
+
+	if (!ctx.outpath) {
+		size_t len = strlen(ctx.filepath) + strlen(".out") + 1; // +1 for null terminator
+		ctx.outpath = malloc(len);
+		if (ctx.outpath) {
+			snprintf(ctx.outpath, len, "%s.out", ctx.filepath);
+			INFO_CTX(ctx.cl_ctx, "No output path specified, defaulting to '%s'.", ctx.outpath);
+		}
 	}
 
 	Token *tokens = tokenize_file(ctx.filepath, &ctx);
@@ -138,4 +152,5 @@ int main(int argc, char *argv[]) {
 	}
 #endif
 
+	compilation_exit(ctx.cl_ctx, false);
 }
