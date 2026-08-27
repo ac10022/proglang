@@ -1,5 +1,11 @@
+fn foo() {
+    i32 n = 1;
+}
+
 fn main() -> i32 {
     i32 x = 5 + 3;
-    //x = 1 + 1 * 2;
-    return x;
+
+    x = 3;
+    x = 2;
+    return 0;
 }
