@@ -98,6 +98,7 @@ void initialise_codegen_context(
 
 void generate_asm(IRInstruction* ir_instruction, CompilerContext* c_ctx);
 
+bool is_variable(IROperand operand);
 bool operand_equals(IROperand a, IROperand b);
 FrameSlot *add_slot(CodegenContext *codegen_context, IROperand operand);
 FrameSlot *find_slot(const CodegenContext *codegen_context, IROperand operand);

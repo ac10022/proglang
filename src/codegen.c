@@ -22,6 +22,15 @@ void initialise_codegen_context(
     codegen_context->out = out;
     codegen_context->compiler_context = compiler_context;
     codegen_context->frame_slot = NULL;
+
+    /*
+     * the offset from s0 (frame pointer);
+     * for now the offset if 8 bytes as -4(s0) stores return address
+     * and -8(s0) will store previous stack frame
+     * initial offset may vary from risc-v's version (32bit or 64bit XLEN)
+     * and also whether we need to save ra and s0 values at all
+     */
+    codegen_context->next_offset = -8;
 }
 
 void generate_asm(IRInstruction *head, CompilerContext *c_ctx) {
@@ -48,6 +57,10 @@ void generate_asm(IRInstruction *head, CompilerContext *c_ctx) {
                 break;
         }
     }
+}
+
+bool is_variable(IROperand operand) {
+    return operand.type == IROP_SYMBOL || operand.type == IROP_TEMP;
 }
 
 bool operand_equals(IROperand a, IROperand b) {
@@ -92,11 +105,36 @@ int allocate_slots(CodegenContext *codegen_context, IRInstruction *ir_instructio
     // in other words frame_size has to be a multiple of 16
     for (; ir_instruction != NULL && ir_instruction->op != IR_END_FUNC; ir_instruction = ir_instruction->next) {
         switch (ir_instruction->op) {
+            case (IR_ADD):
+            //case (IR_SUB):
+            //case (IR_MUL):
+            //case (IR_DIV):
+            //case (IR_EXP):
+            //case (IR_MOD):
+            //case (IR_BITAND):
+            //case (IR_BITOR):
+            //case (IR_BITXOR):
+            //case (IR_LOGOR):
+            //case (IR_LOGAND):
+            //case (IR_SHL):
+            //case (IR_SHR):
+            //case (IR_ADDR):
+            //case (IR_BITNOT):
             case (IR_ASSIGN):
+                IROperand ir_operands[3] = { ir_instruction->dest, ir_instruction->src1, ir_instruction->src2 };
                 // we check whether the variable has a stack slot mapping or not by using find_slot
                 // if it doesn't we will invoke add_slot
+                for (int i = 0; i < 3; i++) {
+                    if (!find_slot(codegen_context, ir_operands[i])) {
+                        if (is_variable(ir_operands[i]))
+                            add_slot(codegen_context, ir_operands[i]);
+                    }
+                }
+                break;
+            case (IR_PARAM):
                 if (!find_slot(codegen_context, ir_instruction->dest)) {
-                    add_slot(codegen_context, ir_instruction->dest);
+                    if (is_variable(ir_instruction->dest))
+                        add_slot(codegen_context, ir_instruction->dest);
                 }
                 break;
             default:
@@ -108,9 +146,9 @@ int allocate_slots(CodegenContext *codegen_context, IRInstruction *ir_instructio
 }
 
 void generate_code(CodegenContext *codegen_context, IRInstruction **p_ir_instruction) {
-    for (
-        IRInstruction *current_instruction = *p_ir_instruction;
-        current_instruction != NULL && current_instruction->op != IR_HALT;
+    IRInstruction *current_instruction = *p_ir_instruction;
+    for (;
+        current_instruction != NULL && current_instruction->op != IR_END_FUNC;
         current_instruction = current_instruction->next
         ) {
         switch (current_instruction->op) {
@@ -119,6 +157,7 @@ void generate_code(CodegenContext *codegen_context, IRInstruction **p_ir_instruc
                 break;
         }
     }
+    *p_ir_instruction = current_instruction;
 }
 
 void process_function_definition(CodegenContext *codegen_context, IRInstruction **p_ir_instruction) {

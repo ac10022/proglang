@@ -1,11 +1,9 @@
-fn foo() {
-    i32 n = 1;
+fn sum(i32 x, i32 y) -> i32 {
+    return x + y;
 }
 
 fn main() -> i32 {
-    i32 x = 5 + 3;
-
-    x = 3;
-    x = 2;
+    // i32 sum = sum(5, 3);
+    i32 sum = 5 + 3;
     return 0;
 }
