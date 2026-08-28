@@ -154,7 +154,86 @@ void generate_code(CodegenContext *codegen_context, IRInstruction **p_ir_instruc
         current_instruction = current_instruction->next
         ) {
         switch (current_instruction->op) {
-            // match and emit corresponding instruction
+            case IR_ADD:
+                break;
+            case IR_SUB:
+
+                break;
+            case IR_MUL:
+
+                break;
+            case IR_DIV:
+
+                break;
+            case IR_EXP:
+
+                break;
+            case IR_MOD:
+
+                break;
+            case IR_BITAND:
+
+                break;
+            case IR_BITOR:
+
+                break;
+            case IR_BITXOR:
+
+                break;
+            case IR_ASSIGN:
+
+                break;
+            case IR_LOGAND:
+
+                break;
+            case IR_LOGOR:
+
+                break;
+            case IR_NEG:
+
+                break;
+            case IR_SHL:
+
+                break;
+            case IR_SHR:
+
+                break;
+            case IR_DEREF:
+
+                break;
+            case IR_ADDR:
+
+                break;
+            case IR_BITNOT:
+
+                break;
+            case IR_LE:
+
+                break;
+            case IR_LT:
+
+                break;
+            case IR_EQ:
+
+                break;
+            case IR_GT:
+
+                break;
+            case IR_GE:
+
+                break;
+            case IR_NE:
+
+                break;
+            case IR_CALL:
+
+                break;
+            case IR_JUMP:
+
+                break;
+            case IR_PARAM:
+
+                break;
             default:
                 break;
         }
@@ -171,10 +250,9 @@ void process_function_definition(CodegenContext *codegen_context, IRInstruction 
     emit_epilogue(codegen_context, frame_size);
 }
 
-
 // creates new stack frame
 void emit_prologue(CodegenContext *codegen_context, int frame_size, const char *function_name) {
-    fprintf(codegen_context->out, ".global %s", function_name);
+    fprintf(codegen_context->out, ".global %s\n", function_name);
 
     // push stack frame on the stack by moving stack pointer by <frame_size> bytes.
     // in risc-v the stack grows towards lower addresses,
@@ -201,11 +279,21 @@ void emit_epilogue(CodegenContext *codegen_context, int frame_size) {
     fprintf(codegen_context->out, "\tlw ra, %d(sp)\n", frame_size - 4);
     fprintf(codegen_context->out, "\tlw s0, %d(sp)\n", frame_size - 8);
     fprintf(codegen_context->out, "\taddi sp, sp, %d\n", frame_size);
-    fprintf(codegen_context->out, "\tret\n");
+    fprintf(codegen_context->out, "\tret\n\n");
 }
 
-//void emit_load(CodegenContext *codegen_cotext, const char *reg, IROperand operand) {}
-//void emit_store(CodegenContext *codegen_context, const char *reg, IROperand operand) {}
-//
-//void emit_add(CodegenContext *codegen_context, const char *dest, const char *src1, const char *src2) {}
-//void emit_addi(CodegenContext *codegen_context, const char *dest, int val) {}
+void emit_load(CodegenContext *codegen_cotext, const char *reg, IROperand operand) {
+    TODO("implement load instruction emitter");
+}
+
+void emit_store(CodegenContext *codegen_context, const char *reg, IROperand operand) {
+    TODO("implement store instruction emitter");
+}
+
+void emit_add(CodegenContext *codegen_context, const char *dest, const char *src1, const char *src2) {
+    TODO("implement add instruction emitter");
+}
+
+void emit_addi(CodegenContext *codegen_context, const char *dest, int val) {
+    TODO("implement add immediate instruction emitter");
+}
