@@ -87,7 +87,7 @@ Token* new_token(
     char* end_pointer,
     LexerContext* l_ctx
 ) {
-    Token* tok = calloc(1, sizeof(Token));
+    Token* tok = PALLOCT(l_ctx->arena, Token, 1);
     tok->token_type = token_type;
     tok->location = start_pointer;
     tok->length = end_pointer - start_pointer;
@@ -236,7 +236,7 @@ Token* read_string_literal(LexerContext* l_ctx, char* pointer) {
     
     bool terminated = false;
     char* end = find_string_end(l_ctx, pointer + 1, &terminated);
-    char* buffer = calloc(1, end - pointer);
+    char* buffer = PALLOCS(l_ctx->arena, end - pointer);
     int buf_index = 0;
 
     char* p2 = pointer + 1;
@@ -434,6 +434,7 @@ Token* tokenize(FileInfo* source, CompilerContext* c_ctx) {
         .cur_source = source,
         .cl_ctx = c_ctx->cl_ctx,
         .cur_linenum = (uint64_t)1,
+        .arena = c_ctx->arena,
     };
 
     // start from beginning of file
@@ -499,7 +500,7 @@ Token* tokenize(FileInfo* source, CompilerContext* c_ctx) {
             Token* new_tok = new_token(token_type, pointer, pointer + (int)identifier_len, &l_ctx);
 
             if (token_type == TOKEN_PRIMITIVE_TYPE_SPECIFIER) {
-                new_tok->typeinfo = calloc(1, sizeof(TypeInfo));
+                new_tok->typeinfo = PALLOCT(l_ctx.arena, TypeInfo, 1);
                 new_tok->typeinfo->is_unsigned = is_unsigned;
                 new_tok->typeinfo->type = primitive_type;
                 new_tok->typeinfo->size = get_type_size(&primitive_type);
@@ -520,7 +521,7 @@ Token* tokenize(FileInfo* source, CompilerContext* c_ctx) {
                 identifier_len = peek - pointer;
                 new_tok->length = identifier_len;
             } else { // its a varaible identifer
-				new_tok->lexeme = malloc(identifier_len + 1);
+				new_tok->lexeme = PALLOCS(l_ctx.arena, identifier_len + 1);
 				memcpy(new_tok->lexeme, pointer, identifier_len);
 				new_tok->lexeme[identifier_len] = '\0';
 			}
@@ -549,7 +550,7 @@ Token* tokenize(FileInfo* source, CompilerContext* c_ctx) {
 }
 
 Token* tokenize_file(char* filepath, CompilerContext* c_ctx) {
-    FileInfo* info = new_fileinfo(filepath);
+    FileInfo* info = new_fileinfo(c_ctx, filepath);
     if (!info) {
         ERR_HALT_CTX(c_ctx->cl_ctx, "Failed to read source file '%s'.", filepath);
         return NULL;

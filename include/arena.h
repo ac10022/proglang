@@ -19,9 +19,7 @@
 
 typedef struct Arena Arena;
 
-
 #define ARENA_ALIGN             (alignof(max_align_t))
-#define ARENA_BASE_POS          (sizeof(Arena))
 
 Arena* arena_create(uint64_t reserve_size, uint64_t commit_size);
 void arena_destroy(Arena* arena);

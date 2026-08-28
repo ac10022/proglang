@@ -1,4 +1,4 @@
-#include "../include/proglang.h"
+#include "proglang.h"
 
 #include <unistd.h>
 extern int optind;  	// optind from getoptcore
@@ -17,14 +17,8 @@ void initialise_compiler_context(CompilerContext* ctx) {
 	ctx->flags = (uint64_t)0;
 	ctx->filepath = NULL;
 	ctx->outpath = NULL;
-	ctx->cl_ctx = new_cleanup_context();
-}
-
-void destroy_compiler_context(CompilerContext* ctx) {
-	if (!ctx) return;
-	ctx->filepath = NULL;
-	ctx->outpath = NULL;
-	destroy_cleanup_context(ctx->cl_ctx);
+	ctx->arena = NEW_ARENA;
+	ctx->cl_ctx = new_cleanup_context(ctx->arena);
 }
 
 void check_for_errors(CompilerContext* ctx) {
@@ -122,7 +116,7 @@ int main(int argc, char *argv[]) {
 
 	if (!ctx.outpath) {
 		size_t len = strlen(ctx.filepath) + strlen(".out") + 1; // +1 for null terminator
-		ctx.outpath = malloc(len);
+		ctx.outpath = PALLOCS(ctx.arena, len);
 		if (ctx.outpath) {
 			snprintf(ctx.outpath, len, "%s.out", ctx.filepath);
 			INFO_CTX(ctx.cl_ctx, "No output path specified, defaulting to '%s'.", ctx.outpath);

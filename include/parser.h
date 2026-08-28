@@ -58,6 +58,8 @@ typedef struct {
 #ifdef DEBUG
     size_t variable_counter; // im just using this as debug to track if we are referring back to the variables correctly
 #endif
+
+    Arena* arena;
 } ParserContext;
 
 ASTNode *generate_ast(Token *head, CompilerContext *c_ctx);
@@ -66,10 +68,10 @@ void initialise_parser_context(ParserContext *ctx, Token* head, CompilerContext 
 void initialise_global_scope(ParserContext *ctx);
 void advance_token(ParserContext *ctx);
 
-ASTNode *new_node_general(NodeType type, Token *tok);
-ASTNode *new_node_binary(NodeType type, ASTNode *l_value, ASTNode *r_value, Token *tok);
-ASTNode *new_node_unary(NodeType type, ASTNode *unary_operand, Token *tok);
-ASTNode *new_node_memidentifier(ASTNode *l_value, char *identifier, Token *tok);
+ASTNode *new_node_general(ParserContext* p_ctx, NodeType type, Token *tok);
+ASTNode *new_node_binary(ParserContext* p_ctx, NodeType type, ASTNode *l_value, ASTNode *r_value, Token *tok);
+ASTNode *new_node_unary(ParserContext* p_ctx, NodeType type, ASTNode *unary_operand, Token *tok);
+ASTNode* new_node_memidentifier(ParserContext* p_ctx, ASTNode* l_value, char* identifier, Token* tok);
 
 Scope *set_new_scope(ParserContext *ctx);
 Scope *exit_scope(ParserContext *ctx);

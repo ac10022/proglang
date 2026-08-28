@@ -2,8 +2,9 @@ cmake_minimum_required(VERSION 3.10)
  
 project(proglang)
 
-add_compile_options(-Wall -Wextra -Wno-psabi -Wno-unused-parameter -Wno-unused-variable)
+add_compile_options(-Wall -Wextra -Wno-psabi -Wno-unused-parameter -Wno-unused-variable -fsanitize=address)
 #											 ^^^ 				   ^^^ remove these when project is done
+add_link_options(-fsanitize=address)
 
 # add only sources here
 set(SOURCES

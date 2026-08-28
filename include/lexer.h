@@ -142,6 +142,7 @@ typedef struct {
     uint64_t cur_linenum;
 
     CleanupContext* cl_ctx;
+    Arena* arena;
 } LexerContext;
 
 Token* new_token(TokenType token_type, char* start_pointer, char* end_pointer, LexerContext* l_ctx);

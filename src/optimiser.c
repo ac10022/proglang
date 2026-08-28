@@ -15,7 +15,7 @@ IRInstruction* ast_to_ir(ASTNode* root, CompilerContext* c_ctx) {
     if (!root) ERR_HALT_CTX(c_ctx->cl_ctx, "Invalid AST provided for IR parsing");
 
     OptimiserContext o_ctx = {};
-    initialise_optim_context(&o_ctx);
+    initialise_optim_context(&o_ctx, c_ctx);
 
     // stage 1: lowering
     for (ASTNode* statement = root; statement != NULL; statement = statement->next) {
@@ -101,10 +101,11 @@ IROperation node_to_irop(NodeType type) {
 /*
  * Initialise all fields of an OptimiserContext object to default values once it has been allocated on the stack.
  */
-void initialise_optim_context(OptimiserContext* ctx) {
+void initialise_optim_context(OptimiserContext* ctx, CompilerContext* c_ctx) {
     ctx->instructions = NULL;
     ctx->temp_var_index = (size_t)0;
     ctx->label_index = (size_t)0;
+    ctx->arena = c_ctx->arena;
 }
 
 /*
@@ -136,7 +137,7 @@ void emit(
     IROperand src1, 
     IROperand src2
 ) {
-    IRInstruction* instruction = calloc(1, sizeof(IRInstruction));
+    IRInstruction* instruction = PALLOCT(ctx->arena, IRInstruction, 1);
     instruction->op = op;
     instruction->dest = d;
     instruction->src1 = src1;

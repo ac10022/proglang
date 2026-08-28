@@ -17,6 +17,7 @@ typedef struct {
 	char *outpath;
 
     CleanupContext* cl_ctx;
+    Arena* arena;
 } CompilerContext;
 
 enum {

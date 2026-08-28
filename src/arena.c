@@ -7,6 +7,9 @@
 
 #include "arena.h"
 #include <string.h>
+#include <assert.h>
+
+// Allocator is currently NOT thread-safe
 
 struct Arena {
     uint64_t reserve_size;
@@ -16,6 +19,7 @@ struct Arena {
 };
 
 typedef unsigned char byte;
+#define ARENA_BASE_POS          (sizeof(Arena))
 
 #ifdef __linux__
 
@@ -35,7 +39,7 @@ uint32_t plat_get_pagesize(void) {
  * Reserve a contiguous block of virtual address space.
  */
 void* mem_reserve(uint64_t size) {
-    void* out = mmap(NULL, size, PROT_NONE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+    void* out = mmap(NULL, size, PROT_NONE, MAP_PRIVATE | MAP_ANON, -1, 0);
     if (out == MAP_FAILED) return NULL;
     return out;
 }
@@ -105,8 +109,7 @@ void* arena_alloc(Arena* arena, uint64_t size) {
     uint64_t new_pos = pos_aligned + size;
 
     // memory allocation failure
-    if (new_pos > arena->reserve_size) return NULL;
-    if (size > arena->reserve_size - pos_aligned) return NULL;
+    if (pos_aligned > arena->reserve_size || size > arena->reserve_size - pos_aligned) return NULL;
 
     // check if this allocation will exceed the amount of physical ram held
     // if so we request more ram

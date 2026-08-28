@@ -22,6 +22,7 @@ void initialise_parser_context(ParserContext *ctx, Token* head, CompilerContext 
 	ctx->cur_scope = NULL;
 	ctx->cur_token = head;
 	ctx->cl_ctx = c_ctx->cl_ctx;
+	ctx->arena = c_ctx->arena;
 
 #ifdef DEBUG
 	ctx->variable_counter = (size_t)0;
@@ -31,7 +32,7 @@ void initialise_parser_context(ParserContext *ctx, Token* head, CompilerContext 
 }
 
 void initialise_global_scope(ParserContext *ctx) {
-	ctx->cur_scope = calloc(1, sizeof(Scope));
+	ctx->cur_scope = PALLOCT(ctx->arena, Scope, 1);
 	ctx->cur_scope->parent = NULL; // global scope is the top of the chain
 	ctx->cur_scope->scope_depth = SCOPE_GLOBAL_DEPTH;
 	ctx->cur_scope->symbols_head = NULL;
@@ -69,15 +70,15 @@ ASTNode *generate_ast(Token *head, CompilerContext *c_ctx) {
 	return root;
 }
 
-ASTNode *new_node_general(NodeType type, Token* tok) {
-	ASTNode* new_node = calloc(1, sizeof(ASTNode));
+ASTNode *new_node_general(ParserContext* p_ctx, NodeType type, Token* tok) {
+	ASTNode* new_node = PALLOCT(p_ctx->arena, ASTNode, 1);
 	new_node->node_type = type;
 	new_node->token = tok;
 	return new_node;
 }
 
-ASTNode* new_node_binary(NodeType type, ASTNode* l_value, ASTNode* r_value, Token* tok) {
-	ASTNode* new_node = calloc(1, sizeof(ASTNode));
+ASTNode* new_node_binary(ParserContext* p_ctx, NodeType type, ASTNode* l_value, ASTNode* r_value, Token* tok) {
+	ASTNode* new_node = PALLOCT(p_ctx->arena, ASTNode, 1);
 	new_node->l_value = l_value;
 	new_node->r_value = r_value;
 	new_node->node_type = type;
@@ -85,8 +86,8 @@ ASTNode* new_node_binary(NodeType type, ASTNode* l_value, ASTNode* r_value, Toke
 	return new_node;
 }
 
-ASTNode* new_node_unary(NodeType type, ASTNode* unary_val, Token* tok) {
-	ASTNode* new_node = calloc(1, sizeof(ASTNode));
+ASTNode* new_node_unary(ParserContext* p_ctx, NodeType type, ASTNode* unary_val, Token* tok) {
+	ASTNode* new_node = PALLOCT(p_ctx->arena, ASTNode, 1);
 	new_node->r_value = unary_val;
 	new_node->node_type = type;
 	new_node->l_value = NULL;
@@ -94,14 +95,14 @@ ASTNode* new_node_unary(NodeType type, ASTNode* unary_val, Token* tok) {
 	return new_node;
 }
 
-ASTNode* new_node_memidentifier(ASTNode* l_value, char* identifier, Token* tok) {
-	ASTNode* new_node = calloc(1, sizeof(ASTNode));
+ASTNode* new_node_memidentifier(ParserContext* p_ctx, ASTNode* l_value, char* identifier, Token* tok) {
+	ASTNode* new_node = PALLOCT(p_ctx->arena, ASTNode, 1);
 	new_node->l_value = l_value;
 	new_node->node_type = NODE_MEMBER;
 	new_node->r_value = NULL;
 	new_node->token = tok;
 	
-	Symbol* mem_sym = calloc(1, sizeof(Symbol));
+	Symbol* mem_sym = PALLOCT(p_ctx->arena, Symbol, 1);
 	mem_sym->name = identifier;
 	new_node->variable_symbol = mem_sym;
 
@@ -170,7 +171,7 @@ ASTNode* new_node_memidentifier(ASTNode* l_value, char* identifier, Token* tok) 
  * Create a new child scope off the current scope and set the context's scope to this new one.
  */
 Scope *set_new_scope(ParserContext *ctx) {
-	Scope *new_scope = calloc(1, sizeof(Scope));
+	Scope *new_scope = PALLOCT(ctx->arena, Scope, 1);
 	new_scope->parent = ctx->cur_scope;
 	new_scope->scope_depth = ctx->cur_scope->scope_depth + 1;
 	ctx->cur_scope = new_scope;
@@ -200,7 +201,7 @@ Symbol *new_symbol(ParserContext *ctx, char *sym_identifier, TypeInfo* typeinfo)
 		ERR_SEMANTIC_CTX(ctx->cl_ctx, ctx->cur_token, "trying to declare a variable with an identifier already held by another variable in the same scope", true);
 	}
 	
-	Symbol *new_symbol = calloc(1, sizeof(Symbol));
+	Symbol *new_symbol = PALLOCT(ctx->arena, Symbol, 1);
 	new_symbol->name = sym_identifier;
 	new_symbol->next = NULL;
 	new_symbol->typeinfo = typeinfo;
@@ -304,7 +305,7 @@ void add_cur_function_to_global_scope(ParserContext *ctx) {
 	Scope* global = get_global_scope(ctx);
 	assert(global != NULL);
 
-	Function* fun = calloc(1, sizeof(Function));
+	Function* fun = PALLOCT(ctx->arena, Function, 1);
 	fun->func_node = ctx->cur_function;
 	fun->next = NULL;
 
@@ -356,10 +357,10 @@ ASTNode *parse_variable_declaration(ParserContext *ctx, bool expect_semicolon, b
 		ERR_SYNTAX_CTX(ctx->cl_ctx, ctx->cur_token, /* expected a */ "variable identifer", true);
 	}
 
-	ASTNode *declaration_node = calloc(1, sizeof(ASTNode));
+	ASTNode *declaration_node = PALLOCT(ctx->arena, ASTNode, 1);
 	declaration_node->node_type = NODE_VARAIBLE_DECLARATION;
 
-    ASTNode *variable_node = calloc(1, sizeof(ASTNode));
+    ASTNode *variable_node = PALLOCT(ctx->arena, ASTNode, 1);
     variable_node->node_type = NODE_VARIABLE;
 
     variable_node->variable_symbol = new_symbol(ctx, ctx->cur_token->lexeme, typeinfo);
@@ -420,7 +421,7 @@ ASTNode *parse_function_parameter(ParserContext *ctx) {
 	Symbol* param = new_symbol(ctx, param_name, param_type);
 	advance_token(ctx);
 
-	ASTNode* param_node = new_node_general(NODE_PARAMETER, type_ref);
+	ASTNode* param_node = new_node_general(ctx, NODE_PARAMETER, type_ref);
 	param_node->variable_symbol = param;
 
 	return param_node;
@@ -447,7 +448,7 @@ ASTNode *parse_function_parameter(ParserContext *ctx) {
  */
 ASTNode *parse_function(ParserContext *ctx) {
 	assert(ctx->cur_token->token_type == TOKEN_KEYWORD_FUNCTION);
-	ASTNode* func = new_node_general(NODE_FUNCTION, ctx->cur_token);
+	ASTNode* func = new_node_general(ctx, NODE_FUNCTION, ctx->cur_token);
 	advance_token(ctx);
 
 	// function identifier, can be accessed through node->token->lexeme
@@ -527,7 +528,7 @@ ASTNode *parse_function(ParserContext *ctx) {
 	// this is legal
 	// we should just infer the return type is VOID
 	else {
-		func->function_return_type = calloc(1, sizeof(TypeInfo));
+		func->function_return_type = PALLOCT(ctx->arena, TypeInfo, 1);
 		SET_TYPE_VOID(func->function_return_type);
 	}
 
@@ -551,7 +552,7 @@ ASTNode *parse_function(ParserContext *ctx) {
  */
 ASTNode *parse_if_statement(ParserContext *ctx) {
 	assert(ctx->cur_token->token_type == TOKEN_KEYWORD_IF);
-	ASTNode* if_stmt = new_node_general(NODE_IF, ctx->cur_token);
+	ASTNode* if_stmt = new_node_general(ctx, NODE_IF, ctx->cur_token);
 	advance_token(ctx);
 
 	if (	ctx->cur_token->token_type != TOKEN_PUNCTUATOR 
@@ -595,7 +596,7 @@ ASTNode *parse_if_statement(ParserContext *ctx) {
  */
 ASTNode *parse_while_statement(ParserContext *ctx) {
 	assert(ctx->cur_token->token_type == TOKEN_KEYWORD_WHILE);
-	ASTNode* while_stmt = new_node_general(NODE_FOR, ctx->cur_token);
+	ASTNode* while_stmt = new_node_general(ctx, NODE_FOR, ctx->cur_token);
 	advance_token(ctx);
 
 	if (	ctx->cur_token->token_type != TOKEN_PUNCTUATOR 
@@ -627,7 +628,7 @@ ASTNode *parse_while_statement(ParserContext *ctx) {
  */
 ASTNode *parse_for_statement(ParserContext *ctx) {
 	assert(ctx->cur_token->token_type == TOKEN_KEYWORD_FOR);
-	ASTNode* for_stmt = new_node_general(NODE_FOR, ctx->cur_token);
+	ASTNode* for_stmt = new_node_general(ctx, NODE_FOR, ctx->cur_token);
 	advance_token(ctx);
 
 	if (	ctx->cur_token->token_type != TOKEN_PUNCTUATOR 
@@ -756,20 +757,20 @@ ASTNode *parse_for_statement(ParserContext *ctx) {
 		ASTNode* iterator = for_stmt->initial->l_value;
 
 		// set up condition i <= b
-		ASTNode* condition = calloc(1, sizeof(ASTNode));
+		ASTNode* condition = PALLOCT(ctx->arena, ASTNode, 1);
 		condition->node_type = NODE_VARIABLE;
 		condition->variable_symbol = iterator->variable_symbol;
 		condition->token = iterator->token;
 
-		for_stmt->condition = new_node_binary(NODE_LE, condition, b_value, dotdot_token);
+		for_stmt->condition = new_node_binary(ctx, NODE_LE, condition, b_value, dotdot_token);
 
 		// set increment to i++
-		ASTNode* increment = calloc(1, sizeof(ASTNode));
+		ASTNode* increment = PALLOCT(ctx->arena, ASTNode, 1);
 		increment->node_type = NODE_VARIABLE;
 		increment->variable_symbol = iterator->variable_symbol;
 		increment->token = iterator->token;
 
-		for_stmt->increment = new_node_unary(NODE_INCREMENT, increment, increment->token);
+		for_stmt->increment = new_node_unary(ctx, NODE_INCREMENT, increment, increment->token);
 
 		if (	ctx->cur_token->token_type != TOKEN_PUNCTUATOR 
 			|| 	ctx->cur_token->punc_type != PUNC_CLOSE_PAREN	) {
@@ -795,7 +796,7 @@ ASTNode *parse_block(ParserContext *ctx) {
 		ERR_SYNTAX_CTX(ctx->cl_ctx, ctx->cur_token, /* expected a */ "open curly '{' for block", true);
 	}
 
-	ASTNode* block = new_node_general(NODE_BLOCK, ctx->cur_token);
+	ASTNode* block = new_node_general(ctx, NODE_BLOCK, ctx->cur_token);
 	advance_token(ctx); // consume {
 
 	if (	ctx->cur_token->token_type == TOKEN_PUNCTUATOR
@@ -842,7 +843,7 @@ ASTNode *parse_return_statement(ParserContext *ctx) {
 	TypeInfo* expected_return_type = ctx->cur_function->function_return_type;
 	assert(expected_return_type != NULL);
 
-	ASTNode* ret = new_node_general(NODE_RETURN, ref);
+	ASTNode* ret = new_node_general(ctx, NODE_RETURN, ref);
 
 	if (	ctx->cur_token->token_type == TOKEN_PUNCTUATOR 
 		&& 	ctx->cur_token->punc_type == PUNC_SEMICOLON		) {
@@ -882,7 +883,7 @@ ASTNode *parse_expr_statement(ParserContext *ctx) {
 	}
 
 	advance_token(ctx);
-	ASTNode* statement = new_node_general(NODE_EXPR_STMT, ref);
+	ASTNode* statement = new_node_general(ctx, NODE_EXPR_STMT, ref);
 	statement->l_value = expr;
 	return statement;
 }
@@ -937,7 +938,7 @@ ASTNode *parse_variable_assignment(ParserContext *ctx) {
 		// here instead we do recursive call because assignment links right to left 
 		// i.e. a = b = c   <====> a = (b = c)
 		ASTNode* right = parse_variable_assignment(ctx);
-		return new_node_binary(NODE_ASSIGN, left, right, ref);
+		return new_node_binary(ctx, NODE_ASSIGN, left, right, ref);
 	}
 
 	if (	ctx->cur_token->token_type == TOKEN_PUNCTUATOR
@@ -987,8 +988,8 @@ ASTNode *parse_variable_assignment(ParserContext *ctx) {
 			default: ERR_GENERAL("Unreachable");
 		}
 
-		ASTNode* rhs = new_node_binary(optype, left, right, ref);
-		return new_node_binary(NODE_ASSIGN, left, rhs, ref); 
+		ASTNode* rhs = new_node_binary(ctx, optype, left, right, ref);
+		return new_node_binary(ctx, NODE_ASSIGN, left, rhs, ref); 
 	}
 
 	return left;
@@ -1009,7 +1010,7 @@ ASTNode* parse_logical_or(ParserContext* ctx) {
 		advance_token(ctx);
 
 		ASTNode* right = parse_logical_and(ctx);
-		left = new_node_binary(NODE_LOGOR, left, right, ref);
+		left = new_node_binary(ctx, NODE_LOGOR, left, right, ref);
 		/* the new_node_binary part forms the tree, basically we have just done
 		 *		 LOG_OR
 		 *		/		\
@@ -1031,7 +1032,7 @@ ASTNode* parse_logical_and(ParserContext* ctx) {
 		advance_token(ctx);
 
 		ASTNode* right = parse_bitwise_or(ctx);
-		left = new_node_binary(NODE_LOGAND, left, right, ref);
+		left = new_node_binary(ctx, NODE_LOGAND, left, right, ref);
 	}
 
 	return left;
@@ -1047,7 +1048,7 @@ ASTNode* parse_bitwise_or(ParserContext* ctx) {
 		advance_token(ctx);
 
 		ASTNode* right = parse_bitwise_xor(ctx);
-		left = new_node_binary(NODE_BITOR, left, right, ref);
+		left = new_node_binary(ctx, NODE_BITOR, left, right, ref);
 	}
 
 	return left;
@@ -1063,7 +1064,7 @@ ASTNode* parse_bitwise_xor(ParserContext* ctx) {
 		advance_token(ctx);
 
 		ASTNode* right = parse_bitwise_and(ctx);
-		left = new_node_binary(NODE_BITXOR, left, right, ref);
+		left = new_node_binary(ctx, NODE_BITXOR, left, right, ref);
 	}
 
 	return left;
@@ -1080,7 +1081,7 @@ ASTNode* parse_bitwise_and(ParserContext* ctx) {
 		advance_token(ctx);
 
 		ASTNode* right = parse_equality(ctx);
-		left = new_node_binary(NODE_BITAND, left, right, ref);
+		left = new_node_binary(ctx, NODE_BITAND, left, right, ref);
 	}
 
 	return left;
@@ -1098,8 +1099,8 @@ ASTNode* parse_equality(ParserContext* ctx) {
 		advance_token(ctx);
 
 		ASTNode* right = parse_comparison(ctx);
-		left = (type == PUNC_EQUALITY) ? new_node_binary(NODE_EQ, left, right, ref)
-									   : new_node_binary(NODE_NE, left, right, ref);
+		left = (type == PUNC_EQUALITY) ? new_node_binary(ctx, NODE_EQ, left, right, ref)
+									   : new_node_binary(ctx, NODE_NE, left, right, ref);
 	}
 
 	return left;
@@ -1121,10 +1122,10 @@ ASTNode* parse_comparison(ParserContext* ctx) {
 		ASTNode* right = parse_bitwise_shift(ctx);
 		
 		switch (type) {
-			case PUNC_LESSTHAN: left = new_node_binary(NODE_LT, left, right, ref); break;
-			case PUNC_GREATER:  left = new_node_binary(NODE_GT, left, right, ref); break;
-			case PUNC_GEQ: 		left = new_node_binary(NODE_GE, left, right, ref); break;
-			case PUNC_LEQ: 		left = new_node_binary(NODE_LE, left, right, ref); break;
+			case PUNC_LESSTHAN: left = new_node_binary(ctx, NODE_LT, left, right, ref); break;
+			case PUNC_GREATER:  left = new_node_binary(ctx, NODE_GT, left, right, ref); break;
+			case PUNC_GEQ: 		left = new_node_binary(ctx, NODE_GE, left, right, ref); break;
+			case PUNC_LEQ: 		left = new_node_binary(ctx, NODE_LE, left, right, ref); break;
 			default: ERR_GENERAL("Unreachable");
 		}
 	}
@@ -1144,8 +1145,8 @@ ASTNode* parse_bitwise_shift(ParserContext* ctx) {
 		advance_token(ctx);
 
 		ASTNode* right = parse_term(ctx);
-		left = (type == PUNC_LS) 	? new_node_binary(NODE_SHL, left, right, ref)
-									: new_node_binary(NODE_SHR, left, right, ref);
+		left = (type == PUNC_LS) 	? new_node_binary(ctx, NODE_SHL, left, right, ref)
+									: new_node_binary(ctx, NODE_SHR, left, right, ref);
 	}
 
 	return left;
@@ -1163,8 +1164,8 @@ ASTNode* parse_term(ParserContext* ctx) {
 		advance_token(ctx);
 
 		ASTNode* right = parse_factor(ctx);
-		left = (type == PUNC_ADDITION) ? new_node_binary(NODE_ADD, left, right, ref)
-									   : new_node_binary(NODE_SUB, left, right, ref);
+		left = (type == PUNC_ADDITION) ? new_node_binary(ctx, NODE_ADD, left, right, ref)
+									   : new_node_binary(ctx, NODE_SUB, left, right, ref);
 	}
 
 	return left;
@@ -1185,9 +1186,9 @@ ASTNode* parse_factor(ParserContext* ctx) {
 		ASTNode* right = parse_exponentiation(ctx);
 		
 		switch (type) {
-			case PUNC_MULTIPLY: left = new_node_binary(NODE_MUL, left, right, ref); break;
-			case PUNC_DIVIDE:   left = new_node_binary(NODE_DIV, left, right, ref); break;
-			case PUNC_MOD: 		left = new_node_binary(NODE_MOD, left, right, ref); break;
+			case PUNC_MULTIPLY: left = new_node_binary(ctx, NODE_MUL, left, right, ref); break;
+			case PUNC_DIVIDE:   left = new_node_binary(ctx, NODE_DIV, left, right, ref); break;
+			case PUNC_MOD: 		left = new_node_binary(ctx, NODE_MOD, left, right, ref); break;
 			default: ERR_GENERAL("Unreachable");
 		}
 	}
@@ -1206,7 +1207,7 @@ ASTNode* parse_exponentiation(ParserContext* ctx) {
 		advance_token(ctx);
 
 		ASTNode* right = parse_exponentiation(ctx);
-		return new_node_binary(NODE_EXP, left, right, ref);
+		return new_node_binary(ctx, NODE_EXP, left, right, ref);
 	}
 
 	return left;
@@ -1228,11 +1229,11 @@ ASTNode* parse_unary(ParserContext* ctx) {
 			ASTNode* operand = parse_unary(ctx);
 			
 			switch (type) {
-				case PUNC_LOGICAL_NOT: 	return new_node_unary(NODE_NOT, operand, ref);
-				case PUNC_AMPERSAND: 	return new_node_unary(NODE_ADDR, operand, ref);
-				case PUNC_BITWISE_NOT: 	return new_node_unary(NODE_BITNOT, operand, ref);
-				case PUNC_SUBTRACTION: 	return new_node_unary(NODE_NEG, operand, ref);
-				case PUNC_MULTIPLY: 	return new_node_unary(NODE_DEREF, operand, ref);
+				case PUNC_LOGICAL_NOT: 	return new_node_unary(ctx, NODE_NOT, operand, ref);
+				case PUNC_AMPERSAND: 	return new_node_unary(ctx, NODE_ADDR, operand, ref);
+				case PUNC_BITWISE_NOT: 	return new_node_unary(ctx, NODE_BITNOT, operand, ref);
+				case PUNC_SUBTRACTION: 	return new_node_unary(ctx, NODE_NEG, operand, ref);
+				case PUNC_MULTIPLY: 	return new_node_unary(ctx, NODE_DEREF, operand, ref);
 				default: ERR_HALT_CTX(ctx->cl_ctx, "Unreachable");
 			}
 		}
@@ -1259,7 +1260,7 @@ ASTNode* parse_postfix(ParserContext* ctx) {
 					ERR_SYNTAX_CTX(ctx->cl_ctx, ctx->cur_token, /* expected a */ "member identifier", true);
 				}
 
-				left = new_node_memidentifier(left, ctx->cur_token->lexeme, ref);
+				left = new_node_memidentifier(ctx, left, ctx->cur_token->lexeme, ref);
 				advance_token(ctx);
 				break;
 			}
@@ -1273,7 +1274,7 @@ ASTNode* parse_postfix(ParserContext* ctx) {
 					ERR_SYNTAX_CTX(ctx->cl_ctx, ctx->cur_token, /* expected a */ "closing square bracket ']'" , true);
 				}
 
-				left = new_node_binary(NODE_INDEX, left, right, ref);
+				left = new_node_binary(ctx, NODE_INDEX, left, right, ref);
 				advance_token(ctx);
 				break;
 			}
@@ -1291,8 +1292,8 @@ ASTNode* parse_postfix(ParserContext* ctx) {
 			case PUNC_INCREMENT:
 			case PUNC_DECREMENT: {
 				advance_token(ctx);
-				left = (type == PUNC_INCREMENT) ? new_node_unary(NODE_INCREMENT, left, ref)
-												: new_node_unary(NODE_DECREMENT, left, ref);
+				left = (type == PUNC_INCREMENT) ? new_node_unary(ctx, NODE_INCREMENT, left, ref)
+												: new_node_unary(ctx, NODE_DECREMENT, left, ref);
 				break;
 			}
 			
@@ -1335,7 +1336,7 @@ ASTNode* parse_else(ParserContext* ctx) {
 		}
 
 		case TOKEN_STRING_LITERAL: {
-            ASTNode* str_node = calloc(1, sizeof(ASTNode));
+            ASTNode* str_node = PALLOCT(ctx->arena, ASTNode, 1);
             str_node->node_type = NODE_LITERAL_STRING;
             str_node->token = ctx->cur_token;
             
@@ -1344,7 +1345,7 @@ ASTNode* parse_else(ParserContext* ctx) {
         }
 		
 		case TOKEN_SYMBOL_IDENTIFIER: {
-            ASTNode* var_node = calloc(1, sizeof(ASTNode));
+            ASTNode* var_node = PALLOCT(ctx->arena, ASTNode, 1);
 			NodeType type = NODE_VARIABLE;
 
 			Token* peek = ctx->cur_token->next;
@@ -1378,7 +1379,7 @@ ASTNode* parse_else(ParserContext* ctx) {
 
 		case TOKEN_INT_LITERAL:
 		case TOKEN_FLOAT_LITERAL: {
-			ASTNode* val = calloc(1, sizeof(ASTNode));
+			ASTNode* val = PALLOCT(ctx->arena, ASTNode, 1);
 			val->node_type = ctx->cur_token->token_type == TOKEN_INT_LITERAL ? NODE_LITERAL_INT : NODE_LITERAL_FLOAT;
 
 			val->token = ctx->cur_token;
@@ -1387,7 +1388,7 @@ ASTNode* parse_else(ParserContext* ctx) {
 		}
 
 		case TOKEN_NULL: {
-			ASTNode* null_val = calloc(1, sizeof(ASTNode));
+			ASTNode* null_val = PALLOCT(ctx->arena, ASTNode, 1);
 			null_val->node_type = NODE_NULL_EXPR;
 			advance_token(ctx);
 			return null_val;
@@ -1410,7 +1411,7 @@ ASTNode* parse_function_call(ParserContext* ctx, ASTNode** rest) {
 
 	Token* ref = ctx->cur_token;
 	advance_token(ctx);
-	ASTNode* func_call = calloc(1, sizeof(ASTNode));
+	ASTNode* func_call = PALLOCT(ctx->arena, ASTNode, 1);
 	func_call->l_value = *rest;
 	func_call->node_type = NODE_FUNCTION_CALL;
 	func_call->token = ref;
