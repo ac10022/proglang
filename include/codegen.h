@@ -65,8 +65,7 @@ typedef struct FrameSlot FrameSlot;
 struct FrameSlot {
     IROperand operand;
     int offset;         // location of slots is determined by offsetting
-                        // the stack pointer or frame pointer by some
-                        // number of bytes
+                        // frame pointer by some number of bytes
 
     FrameSlot *next;    // next slot
 };
@@ -111,7 +110,7 @@ void generate_code(CodegenContext *codegen_context, IRInstruction **p_ir_instruc
 void process_function_definition(CodegenContext *codegen_context, IRInstruction **p_ir_instruction);
 
 // creates new stack frame
-void emit_prologue(CodegenContext *codegen_context, int frame_size);
+void emit_prologue(CodegenContext *codegen_context, int frame_size, const char *function_name);
 // removes the stack frame
 void emit_epilogue(CodegenContext *codegen_context, int frame_size);
 

@@ -52,7 +52,9 @@ void generate_asm(IRInstruction *head, CompilerContext *c_ctx) {
             case (IR_BEGIN_FUNC):
                 process_function_definition(&codegen_context, &current_instruction);
                 break;
+            case (IR_ASSIGN): // global variable
 
+                break;
             default:
                 break;
         }
@@ -163,20 +165,43 @@ void generate_code(CodegenContext *codegen_context, IRInstruction **p_ir_instruc
 void process_function_definition(CodegenContext *codegen_context, IRInstruction **p_ir_instruction) {
     IRInstruction *current_instruction = *p_ir_instruction; //*p_ir_instruction is IR_BEGIN_FUNC at the start
     int frame_size = allocate_slots(codegen_context, current_instruction);
-    emit_prologue(codegen_context, frame_size);
+    frame_size = (frame_size + 15) & ~15; // 16-byte alignment at function call boundary of a stack pointer
+    emit_prologue(codegen_context, frame_size, current_instruction->dest.func_name);
     generate_code(codegen_context, p_ir_instruction);
     emit_epilogue(codegen_context, frame_size);
 }
 
 
 // creates new stack frame
-void emit_prologue(CodegenContext *codegen_context, int frame_size) {
-    // fprint to out actual assembly instrucions
+void emit_prologue(CodegenContext *codegen_context, int frame_size, const char *function_name) {
+    fprintf(codegen_context->out, ".global %s", function_name);
+
+    // push stack frame on the stack by moving stack pointer by <frame_size> bytes.
+    // in risc-v the stack grows towards lower addresses,
+    // so if we target for other architectures we might have to
+    // modify this instruction to move the stack pointer toward
+    // higher addresses
+    // TODO: move stack pointer up or down depending on the target architecture
+    fprintf(codegen_context->out, "\taddi sp, sp, -%d\n", frame_size);
+
+    // TODO: change size of ra dynamically (ie 8 bytes, when targeting rv64)
+    fprintf(codegen_context->out, "\tsw ra, %d(sp)\n", frame_size - 4);
+
+    // TODO: same with s0
+    fprintf(codegen_context->out, "\tsw s0, %d(sp)\n", frame_size - 8);
+
+    // TODO: same as with stack pointer, the current frame pointer
+    //  may move down or up depending on the architecture
+    fprintf(codegen_context->out, "\taddi s0, sp, %d\n", frame_size);
 }
 
 // removes the stack frame
+// TODO: all todos in prologue emitter are applicable to epilogue emitter
 void emit_epilogue(CodegenContext *codegen_context, int frame_size) {
-    // fprint to out actual assembly instrucions
+    fprintf(codegen_context->out, "\tlw ra, %d(sp)\n", frame_size - 4);
+    fprintf(codegen_context->out, "\tlw s0, %d(sp)\n", frame_size - 8);
+    fprintf(codegen_context->out, "\taddi sp, sp, %d\n", frame_size);
+    fprintf(codegen_context->out, "\tret\n");
 }
 
 //void emit_load(CodegenContext *codegen_cotext, const char *reg, IROperand operand) {}

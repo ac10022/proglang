@@ -1,3 +1,5 @@
+i32 t = 3;
+
 fn sum(i32 x, i32 y) -> i32 {
     return x + y;
 }
