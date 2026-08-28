@@ -286,6 +286,11 @@ void emit_load(CodegenContext *codegen_cotext, const char *reg, IROperand operan
     TODO("implement load instruction emitter");
 }
 
+void emit_load_immediate(CodegenContext *codegen_context, const char *reg, int immediate) {
+    TODO("implement load immediate instruction emitter");
+}
+
+
 void emit_store(CodegenContext *codegen_context, const char *reg, IROperand operand) {
     TODO("implement store instruction emitter");
 }

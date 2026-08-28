@@ -115,9 +115,11 @@ void emit_prologue(CodegenContext *codegen_context, int frame_size, const char *
 void emit_epilogue(CodegenContext *codegen_context, int frame_size);
 
 void emit_load(CodegenContext *codegen_cotext, const char *reg, IROperand operand);
+void emit_load_immediate(CodegenContext *codegen_context, const char *reg, int immediate);
+
 void emit_store(CodegenContext *codegen_context, const char *reg, IROperand operand);
 
 void emit_add(CodegenContext *codegen_context, const char *dest, const char *src1, const char *src2);
-void emit_addi(CodegenContext *codegen_context, const char *dest, int val);
+void emit_addi(CodegenContext *codegen_context, const char *dest, int immediate);
 
 #endif //CODEGEN_H
