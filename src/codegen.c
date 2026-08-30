@@ -33,9 +33,10 @@ void initialise_codegen_context(
     codegen_context->next_offset = -8;
 }
 
-void generate_asm(IRInstruction *head, CompilerContext *c_ctx) {
+void generate_asm(IRInstruction *head, CompilerContext *c_ctx, char** fileout) {
     //char *outpath = create_asm_outpath(c_ctx->filepath);
     char *outpath = "a.s";
+    *fileout = outpath;
     FILE *out = fopen(outpath, "w");
 
     if (!out) {
@@ -67,13 +68,13 @@ bool is_variable(IROperand operand) {
 
 bool operand_equals(IROperand a, IROperand b) {
     if (a.type != b.type) return false;
-    if (a.type == IROP_TEMP)   return a.temp_id == b.temp_id;
-    if (a.type == IROP_SYMBOL) return a.sym == b.sym;
+    if (a.type == IROP_TEMP) return a.temp_id == b.temp_id;
+    if (a.type == IROP_SYMBOL) return a.sym->variable_identifier == b.sym->variable_identifier;
     return false;
 }
 
 FrameSlot *add_slot(CodegenContext *codegen_context, IROperand operand) {
-    FrameSlot *frame_slot = calloc(1, sizeof(FrameSlot));
+    FrameSlot *frame_slot = PALLOCT(codegen_context->compiler_context->arena, FrameSlot, 1);
     frame_slot->operand = operand;
 
     //codegen_context->next_offset -= operand.sym->typeinfo->size;

@@ -205,11 +205,8 @@ Symbol *new_symbol(ParserContext *ctx, char *sym_identifier, TypeInfo* typeinfo)
 	new_symbol->name = sym_identifier;
 	new_symbol->next = NULL;
 	new_symbol->typeinfo = typeinfo;
-
-#ifdef DEBUG
 	new_symbol->variable_identifier = ctx->variable_counter;
 	ctx->variable_counter++;
-#endif
 
 	// push to the end of the current scope's linked list of symbols
 	if (ctx->cur_scope->symbols_head) {
@@ -345,9 +342,6 @@ ASTNode *parse_statement(ParserContext *ctx) {
 }
 
 ASTNode *parse_variable_declaration(ParserContext *ctx, bool expect_semicolon, bool* declared) {
-#ifdef DEBUG
-	printf("Parsing variable declaration\n");
-#endif
 	assert(ctx->cur_token->typeinfo != NULL);
 
     TypeInfo* typeinfo = ctx->cur_token->typeinfo;

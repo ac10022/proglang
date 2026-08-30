@@ -95,7 +95,7 @@ void initialise_codegen_context(
     FILE *out
 );
 
-void generate_asm(IRInstruction* ir_instruction, CompilerContext* c_ctx);
+void generate_asm(IRInstruction* ir_instruction, CompilerContext* c_ctx, char** fileout);
 
 bool is_variable(IROperand operand);
 bool operand_equals(IROperand a, IROperand b);

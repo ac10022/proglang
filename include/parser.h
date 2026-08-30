@@ -16,10 +16,7 @@ struct Symbol {
     Symbol *next;
     char *name;
     TypeInfo *typeinfo;
-
-#ifdef DEBUG
     size_t variable_identifier;
-#endif
 };
 
 struct Scope {
