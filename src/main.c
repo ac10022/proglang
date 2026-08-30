@@ -1,6 +1,8 @@
 #include "proglang.h"
 
 #include <unistd.h>
+
+#include "codegen.h"
 extern int optind;  	// optind from getoptcore
 extern char *optarg; 	// optarg from getoptcore
 
@@ -138,6 +140,8 @@ int main(int argc, char *argv[]) {
 
 	IRInstruction* ir_list = ast_to_ir(ast, &ctx);
 	check_for_errors(&ctx);
+
+	generate_asm(ir_list, &ctx);
 
 #ifdef DEBUG
 	if (ctx.flags & CF_IR_TRACE) {
