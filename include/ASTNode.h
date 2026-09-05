@@ -52,6 +52,8 @@ typedef enum {
 	NODE_FUNCTION, // { function_name, function_arguments, function_return_type (someday) } 
 	NODE_VARAIBLE_DECLARATION,
     NODE_PARAMETER,
+    NODE_NAMED_ARGUMENT,    // print("hello world", target=stdout)
+                            //                      ^^^^^^ <- named argument
 
     NODE_LITERAL_INT,
     NODE_LITERAL_FLOAT,
@@ -90,6 +92,10 @@ typedef struct ASTNode {
     ASTNode *increment;
 
     ASTNode *function_to_call;
+
+    // named arg helper
+    char *parameter_name_reference;
+    Symbol *parameter_sym_reference;
 } ASTNode;
 
 #endif

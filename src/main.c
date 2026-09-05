@@ -5,6 +5,7 @@
 #include "codegen.h"
 extern int optind;  	// optind from getoptcore
 extern char *optarg; 	// optarg from getoptcore
+extern int optopt;		// optopt from getoptcore
 
 /*
  * TODO:
@@ -98,7 +99,7 @@ int main(int argc, char *argv[]) {
 
 			default: {
 				fprintf(stderr, "Usage: proglang <source file> [options: see -h]\n");
-				ERR_HALT_CTX(ctx.cl_ctx, "Unknown argument.");
+				ERR_HALT_CTX(ctx.cl_ctx, "Unknown argument '-%c'.", optopt);
 			}
 		}
 	}
@@ -140,18 +141,19 @@ int main(int argc, char *argv[]) {
 
 	IRInstruction* ir_list = ast_to_ir(ast, &ctx);
 	check_for_errors(&ctx);
-
-	// catch asm outpath, this needs to be more robust
-	char* asm_filepath = PALLOCS(ctx.arena, 1024);
-	generate_asm(ir_list, &ctx, &asm_filepath);
-	INFO_CTX(ctx.cl_ctx, "Assembly output to '%s'", asm_filepath);
-
+	
 #ifdef DEBUG
 	if (ctx.flags & CF_IR_TRACE) {
 		printf("\n*** IR LIST TRACE ***\n\n");
 		print_ir_list(ir_list);
 	}
 #endif
+
+	// catch asm outpath, this needs to be more robust
+	char* asm_filepath = PALLOCS(ctx.arena, 1024);
+	generate_asm(ir_list, &ctx, &asm_filepath);
+	INFO_CTX(ctx.cl_ctx, "Assembly output to '%s'", asm_filepath);
+
 
 	compilation_exit(ctx.cl_ctx, false);
 }

@@ -100,7 +100,7 @@ enum {
 
 #define INFO_CTX(cl_ctx, fmt, ...) \
     do { \
-        append_new_notice((cl_ctx), NOTICE_INFO, false, ANSI_COLOR_GREEN"INFO"ANSI_COLOR_RESET":  " fmt "\n", ##__VA_ARGS__); \
+        append_new_notice((cl_ctx), NOTICE_INFO, false, ANSI_COLOR_GREEN"INFO"ANSI_COLOR_RESET":     " fmt "\n", ##__VA_ARGS__); \
     } while (0)
 
 #define DEBUG_TOKEN_STR(tok) printf("%.*s\n", TOK_STR_VAL(tok))
