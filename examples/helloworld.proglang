@@ -1,3 +1,11 @@
+fn print(char* str, i32 target) { return; }
+
+i32 stdout = 1;
+
 fn main(i32 argc, char** argv) {
-    print("Hello World!\n", target=stdout);
+    print("Hello World!", target=stdout);
+    print("Hello World!", target=stdout);
+    print("Hello World!2", target=stdout);
+    print("Hello World!", target=stdout);
+    print("Hello World!", target=stdout);
 }

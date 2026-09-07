@@ -139,21 +139,22 @@ int main(int argc, char *argv[]) {
 	}
 #endif
 
-	IRInstruction* ir_list = ast_to_ir(ast, &ctx);
+	OptimiserOutput optim_out = ast_to_ir(ast, &ctx);
 	check_for_errors(&ctx);
 	
 #ifdef DEBUG
 	if (ctx.flags & CF_IR_TRACE) {
 		printf("\n*** IR LIST TRACE ***\n\n");
-		print_ir_list(ir_list);
+		print_string_list(optim_out.strings);
+		printf("\n");
+		print_ir_list(optim_out.instructions);
 	}
 #endif
 
 	// catch asm outpath, this needs to be more robust
 	char* asm_filepath = PALLOCS(ctx.arena, 1024);
-	generate_asm(ir_list, &ctx, &asm_filepath);
+	generate_asm(optim_out, &ctx, &asm_filepath);
 	INFO_CTX(ctx.cl_ctx, "Assembly output to '%s'", asm_filepath);
-
 
 	compilation_exit(ctx.cl_ctx, false);
 }

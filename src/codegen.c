@@ -33,7 +33,7 @@ void initialise_codegen_context(
     codegen_context->next_offset = -8;
 }
 
-void generate_asm(IRInstruction *head, CompilerContext *c_ctx, char** fileout) {
+void generate_asm(OptimiserOutput optim_out, CompilerContext *c_ctx, char** fileout) {
     //char *outpath = create_asm_outpath(c_ctx->filepath);
     char *outpath = "a.s";
     *fileout = outpath;
@@ -47,7 +47,7 @@ void generate_asm(IRInstruction *head, CompilerContext *c_ctx, char** fileout) {
     CodegenContext codegen_context = {};
     initialise_codegen_context(&codegen_context, c_ctx, out);
 
-    IRInstruction *current_instruction = head;
+    IRInstruction *current_instruction = optim_out.instructions;
     for (; current_instruction->op != IR_HALT; current_instruction = current_instruction->next) {
         switch (current_instruction->op) {
             case (IR_BEGIN_FUNC):

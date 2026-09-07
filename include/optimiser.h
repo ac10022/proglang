@@ -55,6 +55,7 @@ typedef enum {
     IROP_CONST_FLOAT,
     IROP_FUNC,
     IROP_LABEL,
+    IROP_STRING,
 } IROperandType;
 
 typedef struct {
@@ -66,11 +67,13 @@ typedef struct {
         uint64_t int_val;
         long double float_val;
         char* func_name;
+        size_t string_id;
     };
 } IROperand;
 
 #define IROPERAND_EMPTY         (IROperand){ .type = IROP_EMPTY }
 #define IROP_IS_EMPTY(irop)     ((irop).type == IROP_EMPTY)
+#define STR_FROM_ID(id)         ((IROperand) { .type = IROP_STRING, .string_id = (id) })
 
 #define TRUE                    (IROperand){ .type = IROP_CONST_INT, .int_val = 1 }
 #define FALSE                   (IROperand){ .type = IROP_CONST_INT, .int_val = 0 }
@@ -101,6 +104,16 @@ struct IRInstruction {
     IRInstruction *next;
 };
 
+typedef struct StringLiteral StringLiteral;
+
+struct StringLiteral {
+    size_t id;
+    char* data;                     // null terminated
+    size_t length;                  // output of strlen()
+
+    StringLiteral* next;            // for the linked list
+};
+
 typedef struct {
     IRInstruction *instructions;
     size_t temp_var_index;          // this is a counter for when we declare new IROP_TEMPs
@@ -109,16 +122,25 @@ typedef struct {
     size_t label_index;             // this is a counter for when we declare new IROP_LABELs
                                     // so that we always have a unique identifier for a label
 
+    StringLiteral* strings;
+    size_t strings_index;           // unique identifier for IROP_STRINGs
+
     Arena* arena;
 } OptimiserContext;
 
-IRInstruction* ast_to_ir(ASTNode* root, CompilerContext* c_ctx);
+typedef struct {
+    IRInstruction *instructions;
+    StringLiteral *strings;
+} OptimiserOutput;
+
+OptimiserOutput ast_to_ir(ASTNode* root, CompilerContext* c_ctx);
 void lower(OptimiserContext* ctx, ASTNode* node);
 void optimise(OptimiserContext* ctx);
 
 IROperation node_to_irop(NodeType type);
 void initialise_optim_context(OptimiserContext* ctx, CompilerContext* c_ctx);
 void push_instruction(OptimiserContext* ctx, IRInstruction* instruction);
+IROperand push_string(OptimiserContext* ctx, char* data, size_t length);
 void emit(OptimiserContext* ctx, IROperation op, IROperand d, IROperand src1, IROperand src2);
 
 IROperand new_temp(OptimiserContext* ctx);
@@ -131,6 +153,7 @@ const char* irop_to_str(IROperation op);
 void print_ir_operand(IROperand op);
 void print_ir(IRInstruction* instruction);
 void print_ir_list(IRInstruction* instruction_list);
+void print_string_list(StringLiteral* strings_list);
 #endif //debug
 
 #endif

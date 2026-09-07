@@ -12,7 +12,7 @@
 /*
  * Main entry point of the OPTIMISER component; accepts an AST from the parser (the head) and returns a linked list of IR instructions.
  */
-IRInstruction* ast_to_ir(ASTNode* root, CompilerContext* c_ctx) {
+OptimiserOutput ast_to_ir(ASTNode* root, CompilerContext* c_ctx) {
     if (!root) ERR_HALT_CTX(c_ctx->cl_ctx, "Invalid AST provided for IR parsing");
 
     OptimiserContext o_ctx = {};
@@ -29,7 +29,10 @@ IRInstruction* ast_to_ir(ASTNode* root, CompilerContext* c_ctx) {
         optimise(&o_ctx);
     }
 
-    return o_ctx.instructions;
+    return (OptimiserOutput){
+        .instructions = o_ctx.instructions,
+        .strings = o_ctx.strings,
+    };
 }
 
 /*
@@ -125,6 +128,32 @@ void push_instruction(OptimiserContext* ctx, IRInstruction* instruction) {
             ctx->instructions = instruction;
         }
     }
+}
+
+IROperand push_string(OptimiserContext* ctx, char* data, size_t length) {
+    for (StringLiteral* end = ctx->strings; end != NULL; end = end->next) {
+        // check we already hold the exact string, if so we can reuse it
+        if (end->length == length && memcmp(end->data, data, length) == 0) {
+            return STR_FROM_ID(end->id);
+        }
+    }
+
+    assert(data[length] == '\0'); // ensure it is actually null terminated correctly
+    StringLiteral* str = PALLOCT(ctx->arena, StringLiteral, 1);
+    str->id = ctx->strings_index++;
+    str->data = data;
+    str->length = length;
+    str->next = NULL;
+
+    if (ctx->strings) {
+        StringLiteral* end = ctx->strings;
+        while (end->next != NULL) end = end->next;
+        end->next = str;
+    } else {
+        ctx->strings = str;
+    }
+
+    return STR_FROM_ID(str->id);
 }
 
 /*
@@ -375,6 +404,12 @@ IROperand lower_expr(OptimiserContext* ctx, ASTNode* node) {
                 .type = IROP_CONST_FLOAT,
                 .float_val = node->token->float_val,
             };
+
+        case NODE_LITERAL_STRING: {
+            char* data = node->token->str_val;
+            assert(data != NULL);
+            return push_string(ctx, data, strlen(data));
+        }
 
         case NODE_VARIABLE:
             return (IROperand) {
@@ -676,6 +711,7 @@ void print_ir_operand(IROperand op) {
         case IROP_CONST_FLOAT:  printf("%Lf", op.float_val); return;
         case IROP_LABEL:        printf("$l%zu", op.label_id); return;
         case IROP_FUNC:         printf("%s", op.func_name); return;
+        case IROP_STRING:       printf("$s%zu", op.string_id); return;
 
         case IROP_EMPTY:
         default:                return;
@@ -743,6 +779,13 @@ void print_ir_list(IRInstruction* instruction_list) {
     IRInstruction* end = instruction_list;
     for (; end != NULL; end = end->next) {
         print_ir(end); printf("\n");
+    }
+}
+
+void print_string_list(StringLiteral* strings_list) {
+    printf("* STRINGS:\n");
+    for (StringLiteral* end = strings_list; end != NULL; end = end->next) {
+        printf("  $s%zu = \"%s\"\n", end->id, end->data);
     }
 }
 
