@@ -7,7 +7,6 @@
  * TODO
 	* break/continue/import statements
 	* array types
-	* named arguments, e.g., print("hello world", target=stdout)
  */
 
 // the parser context is just a struct we use to encapsulate all the information the parser might need, without having to declare multiple global variables, which is bad practice
@@ -23,6 +22,7 @@ void initialise_parser_context(ParserContext *ctx, Token* head, CompilerContext 
 	ctx->cur_token = head;
 	ctx->cl_ctx = c_ctx->cl_ctx;
 	ctx->arena = c_ctx->arena;
+	ctx->loop_depth = (size_t)0;
 
 #ifdef DEBUG
 	ctx->variable_counter = (size_t)0;
@@ -185,7 +185,7 @@ Scope *set_new_scope(ParserContext *ctx) {
 Scope *exit_scope(ParserContext *ctx) {
 	// how would you get here? idk but better be safe
 	if (ctx->cur_scope->scope_depth == SCOPE_GLOBAL_DEPTH) {
-		ERR_GENERAL("cannot exit global scope");
+		ERR_HALT_CTX(ctx->cl_ctx, "Unreachable");
 	}
 
 	ctx->cur_scope = ctx->cur_scope->parent;
@@ -324,6 +324,8 @@ ASTNode *parse_statement(ParserContext *ctx) {
 		case TOKEN_KEYWORD_WHILE:				return parse_while_statement(ctx);
 		case TOKEN_KEYWORD_FOR:					return parse_for_statement(ctx);
 		case TOKEN_KEYWORD_RETURN:				return parse_return_statement(ctx);
+		case TOKEN_KEYWORD_BREAK:				return parse_break_statement(ctx);
+		case TOKEN_KEYWORD_CONTINUE:			return parse_continue_statement(ctx);
 		case TOKEN_SYMBOL_IDENTIFIER:			return parse_expr_statement(ctx);
 
 		case TOKEN_PUNCTUATOR:
@@ -607,7 +609,9 @@ ASTNode *parse_while_statement(ParserContext *ctx) {
 	}
 	advance_token(ctx); // consume )
 
+	ctx->loop_depth++;
 	while_stmt->body = parse_block(ctx);
+	ctx->loop_depth--;
 
 	return while_stmt;
 }
@@ -716,7 +720,9 @@ ASTNode *parse_for_statement(ParserContext *ctx) {
 		}
 		advance_token(ctx); // consume )
 
+		ctx->loop_depth++;
 		for_stmt->body = parse_block(ctx);
+		ctx->loop_depth--;
 
 		exit_scope(ctx);
 		return for_stmt;
@@ -772,7 +778,9 @@ ASTNode *parse_for_statement(ParserContext *ctx) {
 		}
 		advance_token(ctx); // consume )
 
+		ctx->loop_depth++;
 		for_stmt->body = parse_block(ctx);
+		ctx->loop_depth--;
 
 		exit_scope(ctx);
 		return for_stmt;
@@ -860,6 +868,44 @@ ASTNode *parse_return_statement(ParserContext *ctx) {
 	advance_token(ctx);
 
 	return ret;
+}
+
+ASTNode *parse_break_statement(ParserContext *ctx) {
+	assert(ctx->cur_token->token_type == TOKEN_KEYWORD_BREAK);
+
+	if (ctx->loop_depth == 0) {
+		ERR_SYNTAX_CTX(ctx->cl_ctx, ctx->cur_token, /* expected a */ "function to house 'break' statement (stray break)", true);
+	}
+
+	Token* ref = ctx->cur_token;
+	advance_token(ctx); // consume 'break'
+
+	if (	ctx->cur_token->token_type != TOKEN_PUNCTUATOR 
+		|| 	ctx->cur_token->punc_type != PUNC_SEMICOLON		) {
+		ERR_SYNTAX_CTX(ctx->cl_ctx, ctx->cur_token, /* expected a */ "';' semicolon to end break statement", true);
+	}
+	advance_token(ctx); // consume ';'
+
+	return new_node_general(ctx, NODE_BREAK, ref);
+}
+
+ASTNode *parse_continue_statement(ParserContext *ctx) {
+	assert(ctx->cur_token->token_type == TOKEN_KEYWORD_CONTINUE);
+
+	if (ctx->loop_depth == 0) {
+		ERR_SYNTAX_CTX(ctx->cl_ctx, ctx->cur_token, /* expected a */ "function to house 'continue' statement (stray continue)", true);
+	}
+
+	Token* ref = ctx->cur_token;
+	advance_token(ctx); // consume 'continue'
+
+	if (	ctx->cur_token->token_type != TOKEN_PUNCTUATOR 
+		|| 	ctx->cur_token->punc_type != PUNC_SEMICOLON		) {
+		ERR_SYNTAX_CTX(ctx->cl_ctx, ctx->cur_token, /* expected a */ "';' semicolon to end continue statement", true);
+	}
+	advance_token(ctx); // consume ';'
+
+	return new_node_general(ctx, NODE_CONTINUE, ref);
 }
 
 /*
@@ -979,7 +1025,7 @@ ASTNode *parse_variable_assignment(ParserContext *ctx) {
 			case PUNC_XOREQ:	optype = NODE_BITXOR; break;
 			case PUNC_RS_EQ:	optype = NODE_SHR; break;
 			case PUNC_LS_EQ:	optype = NODE_SHL; break;
-			default: ERR_GENERAL("Unreachable");
+			default: ERR_HALT_CTX(ctx->cl_ctx, "Unreachable");
 		}
 
 		ASTNode* rhs = new_node_binary(ctx, optype, left, right, ref);
@@ -1120,7 +1166,7 @@ ASTNode* parse_comparison(ParserContext* ctx) {
 			case PUNC_GREATER:  left = new_node_binary(ctx, NODE_GT, left, right, ref); break;
 			case PUNC_GEQ: 		left = new_node_binary(ctx, NODE_GE, left, right, ref); break;
 			case PUNC_LEQ: 		left = new_node_binary(ctx, NODE_LE, left, right, ref); break;
-			default: ERR_GENERAL("Unreachable");
+			default: ERR_HALT_CTX(ctx->cl_ctx, "Unreachable");
 		}
 	}
 
@@ -1183,7 +1229,7 @@ ASTNode* parse_factor(ParserContext* ctx) {
 			case PUNC_MULTIPLY: left = new_node_binary(ctx, NODE_MUL, left, right, ref); break;
 			case PUNC_DIVIDE:   left = new_node_binary(ctx, NODE_DIV, left, right, ref); break;
 			case PUNC_MOD: 		left = new_node_binary(ctx, NODE_MOD, left, right, ref); break;
-			default: ERR_GENERAL("Unreachable");
+			default: ERR_HALT_CTX(ctx->cl_ctx, "Unreachable");
 		}
 	}
 
@@ -1610,6 +1656,8 @@ const char* node_to_str(NodeType type) {
 		case NODE_BLOCK:				return "BLOCK";
 		case NODE_PARAMETER:			return "PARAMETER";
 		case NODE_RETURN:				return "RETURN";
+		case NODE_CONTINUE:				return "CONTINUE";
+		case NODE_BREAK:				return "BREAK";
         default:                        printf("%d ", type); return "UNKNOWN_NODE";
     }
 }

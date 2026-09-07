@@ -37,6 +37,8 @@ typedef enum {
     NODE_LOGOR,     // ||
 
     NODE_RETURN,    // "return"
+    NODE_BREAK,     // "break"
+    NODE_CONTINUE,  // "continue"
     NODE_IF,        // "if"
     NODE_FOR,       // "for" or "while"
     NODE_SWITCH,    // "switch"

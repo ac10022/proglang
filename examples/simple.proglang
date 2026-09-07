@@ -3,7 +3,11 @@ fn sum(i32 a, i32 b) {
 }
 
 fn main(void) {
-    i32 a = 10;
-    i32 b = 20;
-    i32 val = sum(a, b+5);
+    i32 tally = 0;
+    for (i32 i in 1..10) {
+        if (i > 4) {
+            tally++;
+            continue;
+        }
+    }
 }

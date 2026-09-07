@@ -48,8 +48,8 @@ typedef struct {
      * if cur_token is where the ^ symbol is, then cur_function is the 'main' function, and cur_function_call is the 'add' function
      */
 
+    size_t loop_depth;
     Scope *cur_scope;
-    
     CleanupContext* cl_ctx;     // for error accumulation and compiler notices
 
 #ifdef DEBUG
@@ -93,6 +93,8 @@ ASTNode *parse_while_statement(ParserContext *ctx);
 ASTNode *parse_for_statement(ParserContext *ctx);
 ASTNode *parse_block(ParserContext *ctx);
 ASTNode *parse_return_statement(ParserContext *ctx);
+ASTNode *parse_break_statement(ParserContext *ctx);
+ASTNode *parse_continue_statement(ParserContext *ctx);
 ASTNode *parse_expr_statement(ParserContext *ctx);
 
 ASTNode *parse_expression(ParserContext *ctx);

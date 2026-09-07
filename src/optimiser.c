@@ -3,9 +3,10 @@
 
 /*
  * TODO:
- *  * lower functions, return statements, struct members etc.
+ *  * struct members, array support
  *  * optimiser (see below)
  *  * work out how the fuck scope works in asm
+ *  * break, continue statement support
  */
 
 /*
