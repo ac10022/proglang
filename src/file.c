@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdbool.h>
+#include <string.h>
 
 #include "file.h"
 #include "base.h"
@@ -65,4 +66,50 @@ bool check_file_exists(char* filepath) {
         fclose(file); return true;
     }
     return false;
+}
+
+/*
+ * Helper function to replace the extension of a file.
+ */
+char* replace_ext(Arena* arena, char* filepath, char* suffix) {
+    if (!arena) return NULL;
+    if (!filepath) return NULL;
+    if (!suffix) return NULL;
+
+    size_t len = strlen(filepath);
+    size_t suffix_len = strlen(suffix);
+    if (len == 0) return NULL;
+
+    // find the final path component
+    size_t start = 0;
+    for (size_t i = 0; i < len; i++) {
+#ifdef _WIN32
+        if (filepath[i] == '/' || filepath[i] == '\\') start = i + 1;
+#else
+        if (filepath[i] == '/') start = i + 1;
+#endif
+    }
+
+    // case where the / is the end of the string
+    if (start == len) return NULL;
+
+    // find the . part of the extension
+    size_t end_len = len;
+    for (size_t i = len; i > start + 1; i--) {
+        if (filepath[i-1] == '.') {
+            end_len = i - 1;
+            break;
+        }
+    }
+
+    char* outpath = PALLOCS(arena, end_len + suffix_len + 1);
+    // output filepath stripped of ending
+    memcpy(outpath, filepath, end_len);
+    // append suffix
+    memcpy(outpath + end_len, suffix, suffix_len);
+
+    // null terminate
+    outpath[end_len + suffix_len] = '\0';
+    
+    return outpath;
 }

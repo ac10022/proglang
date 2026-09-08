@@ -5,7 +5,7 @@
 
 /*
  * TODO
-	* break/continue/import statements
+	* import statements
 	* array types
  */
 

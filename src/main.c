@@ -9,8 +9,6 @@ extern int optopt;		// optopt from getoptcore
 
 /*
  * TODO:
- *	* option to specify outpath name
- *	* aggregate errors; so instead of just stopping compilation as soon as we see one error, we try take compilation as far as possible, then error with all the problems we found
  *	* move IR output to codegen
  *	* output codegen output to assembler if CF_GENERATE_ASSEMBLY is not enabled
  */
@@ -118,12 +116,8 @@ int main(int argc, char *argv[]) {
 	}
 
 	if (!ctx.outpath) {
-		size_t len = strlen(ctx.filepath) + strlen(".out") + 1; // +1 for null terminator
-		ctx.outpath = PALLOCS(ctx.arena, len);
-		if (ctx.outpath) {
-			snprintf(ctx.outpath, len, "%s.out", ctx.filepath);
-			INFO_CTX(ctx.cl_ctx, "No output path specified, defaulting to '%s'.", ctx.outpath);
-		}
+		ctx.outpath = replace_ext(ctx.arena, ctx.filepath, ".out");
+		INFO_CTX(ctx.cl_ctx, "No output path specified, defaulting to '%s'.", ctx.outpath);
 	}
 
 	Token *tokens = tokenize_file(ctx.filepath, &ctx);
@@ -151,9 +145,10 @@ int main(int argc, char *argv[]) {
 	}
 #endif
 
-	// catch asm outpath, this needs to be more robust
-	char* asm_filepath = PALLOCS(ctx.arena, 1024);
+	char* asm_filepath = NULL;
 	generate_asm(optim_out, &ctx, &asm_filepath);
+	check_for_errors(&ctx);
+
 	INFO_CTX(ctx.cl_ctx, "Assembly output to '%s'", asm_filepath);
 
 	compilation_exit(ctx.cl_ctx, false);

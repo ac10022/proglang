@@ -1,4 +1,5 @@
 #include "codegen.h"
+#include "file.h"
 
 /*
  * TODO: the function has to extract the name of .s file, i.e: main.proglang -> main.s
@@ -8,10 +9,8 @@
  * will be most likely deleted after program compilation
  *
  */
-char *create_asm_outpath(char *filepath) {
-    char *outpath = "";
-
-    return outpath;
+char *create_asm_outpath(Arena* arena, char *filepath) {
+    return replace_ext(arena, filepath, ".s");
 }
 
 void initialise_codegen_context(
@@ -34,9 +33,9 @@ void initialise_codegen_context(
 }
 
 void generate_asm(OptimiserOutput optim_out, CompilerContext *c_ctx, char** fileout) {
-    //char *outpath = create_asm_outpath(c_ctx->filepath);
-    char *outpath = "a.s";
-    *fileout = outpath;
+    char *outpath = create_asm_outpath(c_ctx->arena, c_ctx->filepath);
+    if (fileout) *fileout = NULL;    
+
     FILE *out = fopen(outpath, "w");
 
     if (!out) {
@@ -60,6 +59,8 @@ void generate_asm(OptimiserOutput optim_out, CompilerContext *c_ctx, char** file
                 break;
         }
     }
+
+    if (fileout) *fileout = outpath;
 }
 
 bool is_variable(IROperand operand) {

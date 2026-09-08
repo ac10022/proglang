@@ -10,5 +10,6 @@ typedef struct {
 
 FileInfo *new_fileinfo(CompilerContext *c_ctx, char *filepath);
 bool check_file_exists(char* filepath);
+char* replace_ext(Arena* arena, char* filepath, char* suffix);
 
 #endif

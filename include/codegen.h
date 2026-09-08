@@ -87,7 +87,7 @@ typedef struct{
 //    ARM64
 //};
 
-char *create_asm_outpath(char *filepath);
+char *create_asm_outpath(Arena* arena, char *filepath);
 
 void initialise_codegen_context(
     CodegenContext *codegen_context,
