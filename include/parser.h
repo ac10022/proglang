@@ -52,10 +52,8 @@ typedef struct {
     Scope *cur_scope;
     CleanupContext* cl_ctx;     // for error accumulation and compiler notices
 
-#ifdef DEBUG
-    size_t variable_counter; // im just using this as debug to track if we are referring back to the variables correctly
-#endif
-
+    size_t variable_counter;
+    
     Arena* arena;
 } ParserContext;
 

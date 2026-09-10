@@ -70,7 +70,7 @@ bool is_variable(IROperand operand) {
 bool operand_equals(IROperand a, IROperand b) {
     if (a.type != b.type) return false;
     if (a.type == IROP_TEMP) return a.temp_id == b.temp_id;
-    if (a.type == IROP_SYMBOL) return a.sym->variable_identifier == b.sym->variable_identifier;
+    if (a.type == IROP_SYMBOL) return a.sym == b.sym;
     return false;
 }
 

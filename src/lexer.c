@@ -456,6 +456,7 @@ Token* tokenize(FileInfo* source, CompilerContext* c_ctx) {
 
         // skip newline
         if (CHR_IS_NEWLINE(*pointer)) {
+            if (*pointer == '\r' && *(pointer + 1) == '\n') pointer++;
             l_ctx.cur_linenum++;
             pointer++;
             continue;
@@ -484,7 +485,7 @@ Token* tokenize(FileInfo* source, CompilerContext* c_ctx) {
         // character literal
         if (*pointer == '\'') {
             cur = cur->next = read_char_literal(&l_ctx, pointer);
-            cur->int_val = (char)cur->int_val;
+            cur->int_val = (unsigned char)cur->int_val;
             pointer += cur->length;
             continue;
         }

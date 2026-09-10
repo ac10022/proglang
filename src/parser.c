@@ -326,16 +326,22 @@ ASTNode *parse_statement(ParserContext *ctx) {
 		case TOKEN_KEYWORD_RETURN:				return parse_return_statement(ctx);
 		case TOKEN_KEYWORD_BREAK:				return parse_break_statement(ctx);
 		case TOKEN_KEYWORD_CONTINUE:			return parse_continue_statement(ctx);
-		case TOKEN_SYMBOL_IDENTIFIER:			return parse_expr_statement(ctx);
-
+		
 		case TOKEN_PUNCTUATOR:
 			if (ctx->cur_token->punc_type == PUNC_OPEN_CURLY) return parse_block(ctx);
-
-			if (ctx->cur_token->punc_type == PUNC_MULTIPLY) TODO("handle case of e.g., *p = 10");
-			if (ctx->cur_token->punc_type == PUNC_OPEN_PAREN) TODO("handle case of e.g., (tok)->next = NULL"); 
-
-			else ERR_SYNTAX_CTX(ctx->cl_ctx, ctx->cur_token, /* expected a */ "valid statement token", true);
-			return NULL; // to shut up compiler
+			if (ctx->cur_token->punc_type == PUNC_SEMICOLON) {
+				advance_token(ctx);
+				INFO_CTX(ctx->cl_ctx, "%s:%lu:\tempty statement, can safely be removed", ctx->cur_token->source->filepath, ctx->cur_token->line_number);
+				return NULL;
+			}
+			// deliberate fallthrough here
+			
+		case TOKEN_SYMBOL_IDENTIFIER:			
+		case TOKEN_INT_LITERAL:
+		case TOKEN_FLOAT_LITERAL:
+		case TOKEN_STRING_LITERAL:
+		case TOKEN_NULL:
+			return parse_expr_statement(ctx);
 		
 		default:
 			ERR_SYNTAX_CTX(ctx->cl_ctx, ctx->cur_token, /* expected a */ "valid statement token", true);
@@ -353,14 +359,9 @@ ASTNode *parse_variable_declaration(ParserContext *ctx, bool expect_semicolon, b
 		ERR_SYNTAX_CTX(ctx->cl_ctx, ctx->cur_token, /* expected a */ "variable identifer", true);
 	}
 
-	ASTNode *declaration_node = PALLOCT(ctx->arena, ASTNode, 1);
-	declaration_node->node_type = NODE_VARAIBLE_DECLARATION;
-
-    ASTNode *variable_node = PALLOCT(ctx->arena, ASTNode, 1);
-    variable_node->node_type = NODE_VARIABLE;
-
+	ASTNode *declaration_node = new_node_general(ctx, NODE_VARAIBLE_DECLARATION, ctx->cur_token);
+	ASTNode *variable_node = new_node_general(ctx, NODE_VARIABLE, ctx->cur_token);
     variable_node->variable_symbol = new_symbol(ctx, ctx->cur_token->lexeme, typeinfo);
-
 	declaration_node->l_value = variable_node;
 
     advance_token(ctx);
@@ -1480,9 +1481,10 @@ ASTNode* parse_function_call(ParserContext* ctx, ASTNode** rest) {
 			named_arg = false;
 
 			// checking for named arguments
-			if (	ctx->cur_token->next->token_type == TOKEN_PUNCTUATOR
+			if (	ctx->cur_token->token_type == TOKEN_SYMBOL_IDENTIFIER
+				&&	ctx->cur_token->next != NULL
+				&&	ctx->cur_token->next->token_type == TOKEN_PUNCTUATOR
 				&&	ctx->cur_token->next->punc_type == PUNC_ASSIGNMENT	) {
-				// printf("detected named argument %.*s %s\n", TOK_STR_VAL(ctx->cur_token), ctx->cur_token->lexeme);
 				assert(ctx->cur_token->lexeme != NULL); // just to be safe
 				param_ref_name = ctx->cur_token->lexeme;
 				named_arg = true;
@@ -1522,10 +1524,14 @@ ASTNode* parse_function_call(ParserContext* ctx, ASTNode** rest) {
 
 	// match args to parameters
 	// we could probably use a hashmap to speed this up but most likely n <= 10 so O(n^2) and O(n) make no real difference
-	bool previous_unnamed_argument = false;
+	bool seen_named_argument = false;
 	if (param) {
+		ASTNode** ordered_args = PALLOCT(ctx->arena, ASTNode*, expected_param_count);
 		size_t i = 0;
+
 		for (ASTNode* cur_arg = args; cur_arg != NULL; cur_arg = cur_arg->next) {
+			size_t param_index = 0;
+
 			if (cur_arg->parameter_name_reference == NULL) {
 				// unnamed argument
 				// so we just assume arg[i] references param[i]
@@ -1543,52 +1549,45 @@ ASTNode* parse_function_call(ParserContext* ctx, ASTNode** rest) {
 				* foo(1, 2, c=3, d)	==> erroneous, unnamed argument after named argument, even though order is preserved
 				*/
 
-				if (previous_unnamed_argument) {
+				if (seen_named_argument) {
 					ERR_GENERAL_CTX(ctx->cl_ctx, "%s:%lu:\terroneous behaviour, unnamed argument after named argument", ctx->cur_token->source->filepath, ctx->cur_token->line_number);
 				}
 
+				param_index = i;
 				cur_arg->parameter_sym_reference = get_ith_parameter_symbol(param, i);
 				i++;
-				continue;
 			}
-			
-			previous_unnamed_argument = true;
-			bool found = false;
-			for (ASTNode* cur_param = param; cur_param != NULL; cur_param = cur_param->next) {
-				// printf("comparing %s (param) to %s (arg target)\n", cur_param->variable_symbol->name, cur_arg->parameter_name_reference);
-				if (strcmp(cur_param->variable_symbol->name, cur_arg->parameter_name_reference) == 0) {
-					cur_arg->parameter_sym_reference = cur_param->variable_symbol;
-					i++;
-					found = true;
-					break;
+			else {
+				seen_named_argument = true;
+				bool found = false;
+
+				for (ASTNode* cur_param = param; cur_param != NULL; cur_param = cur_param->next, param_index++) {
+					// printf("comparing %s (param) to %s (arg target)\n", cur_param->variable_symbol->name, cur_arg->parameter_name_reference);
+					if (strcmp(cur_param->variable_symbol->name, cur_arg->parameter_name_reference) == 0) {
+						cur_arg->parameter_sym_reference = cur_param->variable_symbol;
+						i++;
+						found = true;
+						break;
+					}
+				}
+				
+				if (!found) {
+					ERR_HALT_CTX(ctx->cl_ctx, "%s:%lu:\tnamed argument '%s' does not refer to any parameter of the function call", ctx->cur_token->source->filepath, ctx->cur_token->line_number, cur_arg->parameter_name_reference);
 				}
 			}
-			if (found) continue;
 
-			ERR_HALT_CTX(ctx->cl_ctx, "%s:%lu:\tnamed argument '%s' does not refer to any parameter of the function call", ctx->cur_token->source->filepath, ctx->cur_token->line_number, cur_arg->parameter_name_reference);
+			// each parameter can only be given one value
+			// for instance we can't do foo(a=1, a=2)
+
+			if (ordered_args[param_index] != NULL) {
+				ERR_HALT_CTX(ctx->cl_ctx, "%s:%lu:\tparameter '%s' was given more than one argument in function call", ctx->cur_token->source->filepath, ctx->cur_token->line_number, cur_arg->parameter_sym_reference->name);
+			}
+			ordered_args[param_index] = cur_arg;
 		}
 
 		// now we have found out what references what, we need to order the arguments correctly such that they correspond to the actual parameter ordering
 		// for instance, foo(1, 2, d=4, c=3) should just translate directly to foo(1, 2, 3, 4);
-		if (previous_unnamed_argument) {
-			// temp array
-			ASTNode** ordered_args = PALLOCT(ctx->arena, ASTNode*, expected_param_count);
-			for (size_t i = 0; i < expected_param_count; i++) ordered_args[i] = NULL;
-	
-			for (ASTNode* cur_arg = args; cur_arg != NULL; cur_arg = cur_arg->next) {
-				size_t param_index = 0;
-				bool found = false;
-				for (ASTNode* cur_param = param; cur_param != NULL; cur_param = cur_param->next) {
-					if (cur_param->variable_symbol->variable_identifier == cur_arg->parameter_sym_reference->variable_identifier) {
-						ordered_args[param_index] = cur_arg;
-						found = true;
-					}
-					param_index++;
-				}
-
-				assert(found); // this is a logical error, it means we could not find the argument parameter, put this here just incase
-			}
-
+		if (seen_named_argument) {
 			args = ordered_args[0];
 
 			for (size_t i = 0; i < expected_param_count - 1; i++) {

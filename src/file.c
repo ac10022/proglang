@@ -10,16 +10,16 @@
 /*
  * Open and read a file from filepath, output its contents into a buffer of MAX_BUFFER_LENGTH
  */
-char *read_file(Arena* arena, char* filepath) {
+char *read_file(CompilerContext* c_ctx, char* filepath) {
     FILE *file = fopen(filepath, "r");
     if (!file) {
-        ERR_GENERAL("Failed to read file.");
+        ERR_HALT_CTX(c_ctx->cl_ctx, "Failed to read file '%s'.", filepath);
         return NULL;
     }
 
-    char *buf = PALLOCS(arena, MAX_BUFFER_LENGTH);
+    char *buf = PALLOCS(c_ctx->arena, MAX_BUFFER_LENGTH);
     if (!buf) {
-        ERR_GENERAL("Memory allocation failed.");
+        ERR_HALT_CTX(c_ctx->cl_ctx, "Memory allocation failed.");
         fclose(file);
         return NULL;
     }
@@ -27,7 +27,7 @@ char *read_file(Arena* arena, char* filepath) {
     size_t true_len = fread(buf, sizeof(char), MAX_BUFFER_LENGTH - 1, file);
 
     if (ferror(file) != 0) {
-        ERR_GENERAL("Error reading file.");
+        ERR_HALT_CTX(c_ctx->cl_ctx, "Error reading file.");
         free(buf);
         fclose(file);
         return NULL;
@@ -43,7 +43,7 @@ char *read_file(Arena* arena, char* filepath) {
  * Open and read a file from filepath, and return its data in a dynamically allocated FileInfo object.
  */
 FileInfo *new_fileinfo(CompilerContext *c_ctx, char *filepath) {
-    char *contents = read_file(c_ctx->arena, filepath);
+    char *contents = read_file(c_ctx, filepath);
     if (contents == NULL) return NULL;
 
     FileInfo *info = PALLOCT(c_ctx->arena, FileInfo, 1);
