@@ -147,8 +147,6 @@ int main(int argc, char *argv[]) {
 	IRInstruction* ir_list = ast_to_ir(ast, &ctx);
 	check_for_errors(&ctx);
 
-	generate_asm(ir_list, &ctx);
-
 #ifdef DEBUG
 	if (ctx.flags & CF_IR_TRACE) {
 		printf("\n*** IR LIST TRACE ***\n\n");
@@ -156,5 +154,6 @@ int main(int argc, char *argv[]) {
 	}
 #endif
 
+	generate_asm(ir_list, &ctx);
 	compilation_exit(ctx.cl_ctx, false);
 }

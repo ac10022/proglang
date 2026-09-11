@@ -153,6 +153,9 @@ void generate_code(CodegenContext *codegen_context, IRInstruction **p_ir_instruc
         current_instruction != NULL && current_instruction->op != IR_END_FUNC;
         current_instruction = current_instruction->next
         ) {
+#ifdef DEBUG
+        printf("generate_code: current_instruction->op = %s\n", irop_to_str(current_instruction->op));
+#endif
         switch (current_instruction->op) {
             case IR_ADD:
                 break;
