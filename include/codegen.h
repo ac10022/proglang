@@ -70,32 +70,34 @@ struct FrameSlot {
     FrameSlot *next;    // next slot
 };
 
+typedef enum Target {
+    RV32,
+    RV64,
+    //X86_64,
+    //ARM64
+} Target;
+
 typedef struct{
     CompilerContext *compiler_context;  // < immutable through out the whole code generation
     FILE *out;                          // <
+    Target target;                      // <
 
     // change at each function definition
     FrameSlot *frame_slot;
     int next_offset;
 } CodegenContext;
 
-// TODO: i think we will hold our horses for this one
-//enum Target {
-//    RV32,
-//    RV64,
-//    X86_64,
-//    ARM64
-//};
 
 char *create_asm_outpath(char *filepath);
 
 void initialise_codegen_context(
     CodegenContext *codegen_context,
     CompilerContext *compiler_context,
-    FILE *out
+    FILE *out,
+    enum Target target
 );
 
-void generate_asm(IRInstruction* ir_instruction, CompilerContext* c_ctx);
+void generate_asm(IRInstruction* ir_instruction, CompilerContext* c_ctx, enum Target);
 
 bool is_variable(IROperand operand);
 bool operand_equals(IROperand a, IROperand b);

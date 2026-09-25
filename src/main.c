@@ -154,6 +154,6 @@ int main(int argc, char *argv[]) {
 	}
 #endif
 
-	generate_asm(ir_list, &ctx);
+	generate_asm(ir_list, &ctx, /*Target*/ RV32);
 	compilation_exit(ctx.cl_ctx, false);
 }
