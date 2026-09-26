@@ -87,17 +87,24 @@ typedef struct{
     int next_offset;
 } CodegenContext;
 
+// TODO: i think we will hold our horses for this one
+//enum Target {
+//    RV32,
+//    RV64,
+//    X86_64,
+//    ARM64
+//};
 
-char *create_asm_outpath(char *filepath);
+char *create_asm_outpath(Arena* arena, char *filepath);
 
 void initialise_codegen_context(
     CodegenContext *codegen_context,
     CompilerContext *compiler_context,
     FILE *out,
-    enum Target target
+    Target target
 );
 
-void generate_asm(IRInstruction* ir_instruction, CompilerContext* c_ctx, enum Target);
+void generate_asm(OptimiserOutput optim_out, CompilerContext *c_ctx, char** fileout, Target target);
 
 bool is_variable(IROperand operand);
 bool operand_equals(IROperand a, IROperand b);

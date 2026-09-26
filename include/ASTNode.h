@@ -37,6 +37,8 @@ typedef enum {
     NODE_LOGOR,     // ||
 
     NODE_RETURN,    // "return"
+    NODE_BREAK,     // "break"
+    NODE_CONTINUE,  // "continue"
     NODE_IF,        // "if"
     NODE_FOR,       // "for" or "while"
     NODE_SWITCH,    // "switch"
@@ -52,6 +54,8 @@ typedef enum {
 	NODE_FUNCTION, // { function_name, function_arguments, function_return_type (someday) } 
 	NODE_VARAIBLE_DECLARATION,
     NODE_PARAMETER,
+    NODE_NAMED_ARGUMENT,    // print("hello world", target=stdout)
+                            //                      ^^^^^^ <- named argument
 
     NODE_LITERAL_INT,
     NODE_LITERAL_FLOAT,
@@ -84,12 +88,16 @@ typedef struct ASTNode {
     ASTNode *on_condition_success;
     ASTNode *on_condition_failure;
 
-    // for statements
+    // for statements structed like this:
+    // for (initial; condition; increment) { ... }
     ASTNode *initial;
     ASTNode *increment;
 
-    // for statements structed like this:
-    // for (initial; condition; increment) { ... }
+    ASTNode *function_to_call;
+
+    // named arg helper
+    char *parameter_name_reference;
+    Symbol *parameter_sym_reference;
 } ASTNode;
 
 #endif

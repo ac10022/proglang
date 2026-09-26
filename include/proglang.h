@@ -4,6 +4,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+#include "arena.h"
 #include "cleanup.h"
 #include "base.h"
 #include "lexer.h"

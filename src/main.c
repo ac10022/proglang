@@ -1,15 +1,14 @@
-#include "../include/proglang.h"
+#include "proglang.h"
 
 #include <unistd.h>
 
 #include "codegen.h"
 extern int optind;  	// optind from getoptcore
 extern char *optarg; 	// optarg from getoptcore
+extern int optopt;		// optopt from getoptcore
 
 /*
  * TODO:
- *	* option to specify outpath name
- *	* aggregate errors; so instead of just stopping compilation as soon as we see one error, we try take compilation as far as possible, then error with all the problems we found
  *	* move IR output to codegen
  *	* output codegen output to assembler if CF_GENERATE_ASSEMBLY is not enabled
  */
@@ -19,14 +18,8 @@ void initialise_compiler_context(CompilerContext* ctx) {
 	ctx->flags = (uint64_t)0;
 	ctx->filepath = NULL;
 	ctx->outpath = NULL;
-	ctx->cl_ctx = new_cleanup_context();
-}
-
-void destroy_compiler_context(CompilerContext* ctx) {
-	if (!ctx) return;
-	ctx->filepath = NULL;
-	ctx->outpath = NULL;
-	destroy_cleanup_context(ctx->cl_ctx);
+	ctx->arena = NEW_ARENA;
+	ctx->cl_ctx = new_cleanup_context(ctx->arena);
 }
 
 void check_for_errors(CompilerContext* ctx) {
@@ -104,7 +97,7 @@ int main(int argc, char *argv[]) {
 
 			default: {
 				fprintf(stderr, "Usage: proglang <source file> [options: see -h]\n");
-				ERR_HALT_CTX(ctx.cl_ctx, "Unknown argument.");
+				ERR_HALT_CTX(ctx.cl_ctx, "Unknown argument '-%c'.", optopt);
 			}
 		}
 	}
@@ -123,12 +116,8 @@ int main(int argc, char *argv[]) {
 	}
 
 	if (!ctx.outpath) {
-		size_t len = strlen(ctx.filepath) + strlen(".out") + 1; // +1 for null terminator
-		ctx.outpath = malloc(len);
-		if (ctx.outpath) {
-			snprintf(ctx.outpath, len, "%s.out", ctx.filepath);
-			INFO_CTX(ctx.cl_ctx, "No output path specified, defaulting to '%s'.", ctx.outpath);
-		}
+		ctx.outpath = replace_ext(ctx.arena, ctx.filepath, ".out");
+		INFO_CTX(ctx.cl_ctx, "No output path specified, defaulting to '%s'.", ctx.outpath);
 	}
 
 	Token *tokens = tokenize_file(ctx.filepath, &ctx);
@@ -144,16 +133,23 @@ int main(int argc, char *argv[]) {
 	}
 #endif
 
-	IRInstruction* ir_list = ast_to_ir(ast, &ctx);
+	OptimiserOutput optim_out = ast_to_ir(ast, &ctx);
 	check_for_errors(&ctx);
 
 #ifdef DEBUG
 	if (ctx.flags & CF_IR_TRACE) {
 		printf("\n*** IR LIST TRACE ***\n\n");
-		print_ir_list(ir_list);
+		print_string_list(optim_out.strings);
+		printf("\n");
+		print_ir_list(optim_out.instructions);
 	}
 #endif
 
-	generate_asm(ir_list, &ctx, /*Target*/ RV32);
+	char* asm_filepath = NULL;
+	generate_asm(optim_out, &ctx, &asm_filepath, /*Target*/ RV32);
+	check_for_errors(&ctx);
+
+	INFO_CTX(ctx.cl_ctx, "Assembly output to '%s'", asm_filepath);
+
 	compilation_exit(ctx.cl_ctx, false);
 }

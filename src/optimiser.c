@@ -3,19 +3,20 @@
 
 /*
  * TODO:
- *  * lower functions, return statements, struct members etc.
+ *  * struct members, array support
  *  * optimiser (see below)
  *  * work out how the fuck scope works in asm
+ *  * break, continue statement support
  */
 
 /*
  * Main entry point of the OPTIMISER component; accepts an AST from the parser (the head) and returns a linked list of IR instructions.
  */
-IRInstruction* ast_to_ir(ASTNode* root, CompilerContext* c_ctx) {
+OptimiserOutput ast_to_ir(ASTNode* root, CompilerContext* c_ctx) {
     if (!root) ERR_HALT_CTX(c_ctx->cl_ctx, "Invalid AST provided for IR parsing");
 
     OptimiserContext o_ctx = {};
-    initialise_optim_context(&o_ctx);
+    initialise_optim_context(&o_ctx, c_ctx);
 
     // stage 1: lowering
     for (ASTNode* statement = root; statement != NULL; statement = statement->next) {
@@ -28,7 +29,10 @@ IRInstruction* ast_to_ir(ASTNode* root, CompilerContext* c_ctx) {
         optimise(&o_ctx);
     }
 
-    return o_ctx.instructions;
+    return (OptimiserOutput){
+        .instructions = o_ctx.instructions,
+        .strings = o_ctx.strings,
+    };
 }
 
 /*
@@ -65,6 +69,32 @@ IROperation node_to_irop(NodeType type) {
         case NODE_LE:           return IR_LE;
         case NODE_GT:           return IR_GT;
         case NODE_GE:           return IR_GE;
+
+        case NODE_NULL_EXPR:
+        case NODE_ASSIGN:
+        case NODE_COND:
+        case NODE_MEMBER:
+        case NODE_NOT:
+
+        case NODE_RETURN:
+        case NODE_IF:
+        case NODE_FOR:
+        case NODE_SWITCH:
+        case NODE_CASE:
+        case NODE_BLOCK:
+        case NODE_INDEX:
+        
+        case NODE_EXPR_STMT:
+        case NODE_VARIABLE:
+        case NODE_VARIABLE_VALUE:
+        case NODE_FUNCTION_DECLARATION:
+        case NODE_FUNCTION:
+        case NODE_VARAIBLE_DECLARATION:
+        case NODE_PARAMETER:
+        case NODE_LITERAL_INT:
+        case NODE_LITERAL_FLOAT:
+        case NODE_LITERAL_STRING:
+        case NODE_FUNCTION_CALL:
         
         default:                TODO("implement this irop");
     }
@@ -75,10 +105,11 @@ IROperation node_to_irop(NodeType type) {
 /*
  * Initialise all fields of an OptimiserContext object to default values once it has been allocated on the stack.
  */
-void initialise_optim_context(OptimiserContext* ctx) {
+void initialise_optim_context(OptimiserContext* ctx, CompilerContext* c_ctx) {
     ctx->instructions = NULL;
     ctx->temp_var_index = (size_t)0;
     ctx->label_index = (size_t)0;
+    ctx->arena = c_ctx->arena;
 }
 
 /*
@@ -99,6 +130,32 @@ void push_instruction(OptimiserContext* ctx, IRInstruction* instruction) {
     }
 }
 
+IROperand push_string(OptimiserContext* ctx, char* data, size_t length) {
+    for (StringLiteral* end = ctx->strings; end != NULL; end = end->next) {
+        // check we already hold the exact string, if so we can reuse it
+        if (end->length == length && memcmp(end->data, data, length) == 0) {
+            return STR_FROM_ID(end->id);
+        }
+    }
+
+    assert(data[length] == '\0'); // ensure it is actually null terminated correctly
+    StringLiteral* str = PALLOCT(ctx->arena, StringLiteral, 1);
+    str->id = ctx->strings_index++;
+    str->data = data;
+    str->length = length;
+    str->next = NULL;
+
+    if (ctx->strings) {
+        StringLiteral* end = ctx->strings;
+        while (end->next != NULL) end = end->next;
+        end->next = str;
+    } else {
+        ctx->strings = str;
+    }
+
+    return STR_FROM_ID(str->id);
+}
+
 /*
  * Create an IR instruction and push it to the end of the context's instruction list.
  * The instruction will be of the form: d = [src1] <op> [src2]
@@ -110,7 +167,7 @@ void emit(
     IROperand src1, 
     IROperand src2
 ) {
-    IRInstruction* instruction = calloc(1, sizeof(IRInstruction));
+    IRInstruction* instruction = PALLOCT(ctx->arena, IRInstruction, 1);
     instruction->op = op;
     instruction->dest = d;
     instruction->src1 = src1;
@@ -298,9 +355,8 @@ void lower(OptimiserContext* ctx, ASTNode* node) {
         }
 
         case NODE_SWITCH:
-        case NODE_FUNCTION_CALL:
-        case NODE_FUNCTION_DECLARATION:
-            TODO("lower switch/function calls");
+            TODO("lower switch statement calls");
+            break;
 
         default:
             lower_expr(ctx, node);
@@ -348,6 +404,12 @@ IROperand lower_expr(OptimiserContext* ctx, ASTNode* node) {
                 .type = IROP_CONST_FLOAT,
                 .float_val = node->token->float_val,
             };
+
+        case NODE_LITERAL_STRING: {
+            char* data = node->token->str_val;
+            assert(data != NULL);
+            return push_string(ctx, data, strlen(data));
+        }
 
         case NODE_VARIABLE:
             return (IROperand) {
@@ -408,8 +470,17 @@ IROperand lower_expr(OptimiserContext* ctx, ASTNode* node) {
                 ERR_SEMANTIC(node->token, "cannot increment/decrement non-variable value");
             }
 
-            if (node->node_type == NODE_INCREMENT) emit(ctx, IR_ADD, lhs, lhs, rhs);
-            if (node->node_type == NODE_DECREMENT) emit(ctx, IR_SUB, lhs, lhs, rhs);
+            IROperand temp = new_temp(ctx);
+
+            if (node->node_type == NODE_INCREMENT) {
+                emit(ctx, IR_ADD, temp, lhs, rhs);
+                emit(ctx, IR_ASSIGN, lhs, temp, IROPERAND_EMPTY);
+            }
+            else if (node->node_type == NODE_DECREMENT) {
+                emit(ctx, IR_SUB, temp, lhs, rhs);
+                emit(ctx, IR_ASSIGN, lhs, temp, IROPERAND_EMPTY);
+            }    
+
             return lhs;
         }
 
@@ -497,6 +568,58 @@ IROperand lower_expr(OptimiserContext* ctx, ASTNode* node) {
              *
              * so if either is true, we skip the res = false step
              */
+        }
+
+        case NODE_FUNCTION_CALL: {
+
+            /*
+             * on getting something like add(1, 2);
+             * we want to first push the arguments onto the parameter stack
+             * so we will lower each of the arguments, then use IR_PARAM to specify that we push them onto the stack
+             * then we IR_CALL the function we want to perform, specifying how many arguments we need to pop from the stack in order to do so
+             * 
+             * so for example add(1, 2);
+             * translates to:
+             * 
+             *                      // param stack = []
+             * PARAM 1              // param stack = [1]
+             * PARAM 2              // param stack = [1, 2]
+             * $t = CALL add, 2     // call arg, using 2 popped arguments from the param stack, then store the result in temp var $t
+             * 
+             * then if further we had i32 x = add(1, 2);
+             * we would have one final concluding instruction
+             * x = $t
+             * 
+             */
+
+            ASTNode* func_to_call = node->function_to_call;
+            size_t param_count = function_get_param_count(func_to_call);
+
+            IROperand fn = (IROperand) {
+                .type = IROP_FUNC,
+                .func_name = func_to_call->function_name,
+            };
+            
+            ASTNode* args = node->body;
+
+            // iterate through the provided arguments and push them onto the param stack
+            for (size_t i = 0; i < param_count; i++) {
+                emit(ctx, IR_PARAM, lower_expr(ctx, args), IROPERAND_EMPTY, IROPERAND_EMPTY);
+                args = args->next;
+            }
+
+            // ensure we have engulfed all arguments, this is essentially double checking arg_count == param_count
+            assert(args == NULL);
+
+            IROperand params_to_pop = (IROperand) {
+                .type = IROP_CONST_INT,
+                .int_val = param_count,
+            };
+
+            IROperand res = new_temp(ctx);
+            emit(ctx, IR_CALL, res, fn, params_to_pop);
+
+            return res;
         }
 
         // idk yet
@@ -588,6 +711,7 @@ void print_ir_operand(IROperand op) {
         case IROP_CONST_FLOAT:  printf("%Lf", op.float_val); return;
         case IROP_LABEL:        printf("$l%zu", op.label_id); return;
         case IROP_FUNC:         printf("%s", op.func_name); return;
+        case IROP_STRING:       printf("$s%zu", op.string_id); return;
 
         case IROP_EMPTY:
         default:                return;
@@ -629,12 +753,19 @@ void print_ir(IRInstruction* instruction) {
     } else if (instruction->op == IR_END_FUNC) {
         printf("END FUNCTION ");
         print_ir_operand(instruction->dest);
+        printf("\n");
     } else if (instruction->op == IR_RETURN) {
         printf("RETURN ");
         print_ir_operand(instruction->src1);
     } else if (instruction->op == IR_PARAM) {
         printf("PARAM ");
         print_ir_operand(instruction->dest);
+    } else if (instruction->op == IR_CALL) {
+        print_ir_operand(instruction->dest);
+        printf("=CALL ");
+        print_ir_operand(instruction->src1);
+        printf(", ");
+        print_ir_operand(instruction->src2);
     } else {
         print_ir_operand(instruction->dest);
         printf("=");
@@ -648,6 +779,13 @@ void print_ir_list(IRInstruction* instruction_list) {
     IRInstruction* end = instruction_list;
     for (; end != NULL; end = end->next) {
         print_ir(end); printf("\n");
+    }
+}
+
+void print_string_list(StringLiteral* strings_list) {
+    printf("* STRINGS:\n");
+    for (StringLiteral* end = strings_list; end != NULL; end = end->next) {
+        printf("  $s%zu = \"%s\"\n", end->id, end->data);
     }
 }
 

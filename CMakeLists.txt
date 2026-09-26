@@ -2,8 +2,9 @@ cmake_minimum_required(VERSION 3.10)
  
 project(proglang)
 
-add_compile_options(-Wall -Wextra -Wno-psabi -Wno-unused-parameter -Wno-unused-variable)
-#											 ^^^ 				   ^^^ remove these when project is done
+add_compile_options(-Wall -Wextra -Wno-psabi -Wno-unused-parameter -Wno-unused-variable -fsanitize=address -Wno-implicit-fallthrough)
+
+add_link_options(-fsanitize=address)
 
 # add only sources here
 set(SOURCES
@@ -16,7 +17,9 @@ set(SOURCES
 	src/codegen.c
 )
 
-add_executable(proglang ${SOURCES})
+add_executable(proglang ${SOURCES}
+ src/arena.c
+ include/arena.h)
 
 # this will tell compiler to look into proglang/include/ if it sees
 #	#include "lexer.h"

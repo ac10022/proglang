@@ -5,9 +5,8 @@
 
 /*
  * TODO
-	* break/continue/import statements
+	* import statements
 	* array types
-	* named arguments, e.g., print("hello world", target=stdout)
  */
 
 // the parser context is just a struct we use to encapsulate all the information the parser might need, without having to declare multiple global variables, which is bad practice
@@ -22,6 +21,8 @@ void initialise_parser_context(ParserContext *ctx, Token* head, CompilerContext 
 	ctx->cur_scope = NULL;
 	ctx->cur_token = head;
 	ctx->cl_ctx = c_ctx->cl_ctx;
+	ctx->arena = c_ctx->arena;
+	ctx->loop_depth = (size_t)0;
 
 #ifdef DEBUG
 	ctx->variable_counter = (size_t)0;
@@ -31,7 +32,7 @@ void initialise_parser_context(ParserContext *ctx, Token* head, CompilerContext 
 }
 
 void initialise_global_scope(ParserContext *ctx) {
-	ctx->cur_scope = calloc(1, sizeof(Scope));
+	ctx->cur_scope = PALLOCT(ctx->arena, Scope, 1);
 	ctx->cur_scope->parent = NULL; // global scope is the top of the chain
 	ctx->cur_scope->scope_depth = SCOPE_GLOBAL_DEPTH;
 	ctx->cur_scope->symbols_head = NULL;
@@ -69,15 +70,15 @@ ASTNode *generate_ast(Token *head, CompilerContext *c_ctx) {
 	return root;
 }
 
-ASTNode *new_node_general(NodeType type, Token* tok) {
-	ASTNode* new_node = calloc(1, sizeof(ASTNode));
+ASTNode *new_node_general(ParserContext* p_ctx, NodeType type, Token* tok) {
+	ASTNode* new_node = PALLOCT(p_ctx->arena, ASTNode, 1);
 	new_node->node_type = type;
 	new_node->token = tok;
 	return new_node;
 }
 
-ASTNode* new_node_binary(NodeType type, ASTNode* l_value, ASTNode* r_value, Token* tok) {
-	ASTNode* new_node = calloc(1, sizeof(ASTNode));
+ASTNode* new_node_binary(ParserContext* p_ctx, NodeType type, ASTNode* l_value, ASTNode* r_value, Token* tok) {
+	ASTNode* new_node = PALLOCT(p_ctx->arena, ASTNode, 1);
 	new_node->l_value = l_value;
 	new_node->r_value = r_value;
 	new_node->node_type = type;
@@ -85,8 +86,8 @@ ASTNode* new_node_binary(NodeType type, ASTNode* l_value, ASTNode* r_value, Toke
 	return new_node;
 }
 
-ASTNode* new_node_unary(NodeType type, ASTNode* unary_val, Token* tok) {
-	ASTNode* new_node = calloc(1, sizeof(ASTNode));
+ASTNode* new_node_unary(ParserContext* p_ctx, NodeType type, ASTNode* unary_val, Token* tok) {
+	ASTNode* new_node = PALLOCT(p_ctx->arena, ASTNode, 1);
 	new_node->r_value = unary_val;
 	new_node->node_type = type;
 	new_node->l_value = NULL;
@@ -94,14 +95,14 @@ ASTNode* new_node_unary(NodeType type, ASTNode* unary_val, Token* tok) {
 	return new_node;
 }
 
-ASTNode* new_node_memidentifier(ASTNode* l_value, char* identifier, Token* tok) {
-	ASTNode* new_node = calloc(1, sizeof(ASTNode));
+ASTNode* new_node_memidentifier(ParserContext* p_ctx, ASTNode* l_value, char* identifier, Token* tok) {
+	ASTNode* new_node = PALLOCT(p_ctx->arena, ASTNode, 1);
 	new_node->l_value = l_value;
 	new_node->node_type = NODE_MEMBER;
 	new_node->r_value = NULL;
 	new_node->token = tok;
 	
-	Symbol* mem_sym = calloc(1, sizeof(Symbol));
+	Symbol* mem_sym = PALLOCT(p_ctx->arena, Symbol, 1);
 	mem_sym->name = identifier;
 	new_node->variable_symbol = mem_sym;
 
@@ -170,7 +171,7 @@ ASTNode* new_node_memidentifier(ASTNode* l_value, char* identifier, Token* tok) 
  * Create a new child scope off the current scope and set the context's scope to this new one.
  */
 Scope *set_new_scope(ParserContext *ctx) {
-	Scope *new_scope = calloc(1, sizeof(Scope));
+	Scope *new_scope = PALLOCT(ctx->arena, Scope, 1);
 	new_scope->parent = ctx->cur_scope;
 	new_scope->scope_depth = ctx->cur_scope->scope_depth + 1;
 	ctx->cur_scope = new_scope;
@@ -184,7 +185,7 @@ Scope *set_new_scope(ParserContext *ctx) {
 Scope *exit_scope(ParserContext *ctx) {
 	// how would you get here? idk but better be safe
 	if (ctx->cur_scope->scope_depth == SCOPE_GLOBAL_DEPTH) {
-		ERR_GENERAL("cannot exit global scope");
+		ERR_HALT_CTX(ctx->cl_ctx, "Unreachable");
 	}
 
 	ctx->cur_scope = ctx->cur_scope->parent;
@@ -200,15 +201,12 @@ Symbol *new_symbol(ParserContext *ctx, char *sym_identifier, TypeInfo* typeinfo)
 		ERR_SEMANTIC_CTX(ctx->cl_ctx, ctx->cur_token, "trying to declare a variable with an identifier already held by another variable in the same scope", true);
 	}
 	
-	Symbol *new_symbol = calloc(1, sizeof(Symbol));
+	Symbol *new_symbol = PALLOCT(ctx->arena, Symbol, 1);
 	new_symbol->name = sym_identifier;
 	new_symbol->next = NULL;
 	new_symbol->typeinfo = typeinfo;
-
-#ifdef DEBUG
 	new_symbol->variable_identifier = ctx->variable_counter;
 	ctx->variable_counter++;
-#endif
 
 	// push to the end of the current scope's linked list of symbols
 	if (ctx->cur_scope->symbols_head) {
@@ -304,7 +302,7 @@ void add_cur_function_to_global_scope(ParserContext *ctx) {
 	Scope* global = get_global_scope(ctx);
 	assert(global != NULL);
 
-	Function* fun = calloc(1, sizeof(Function));
+	Function* fun = PALLOCT(ctx->arena, Function, 1);
 	fun->func_node = ctx->cur_function;
 	fun->next = NULL;
 
@@ -326,16 +324,24 @@ ASTNode *parse_statement(ParserContext *ctx) {
 		case TOKEN_KEYWORD_WHILE:				return parse_while_statement(ctx);
 		case TOKEN_KEYWORD_FOR:					return parse_for_statement(ctx);
 		case TOKEN_KEYWORD_RETURN:				return parse_return_statement(ctx);
-		case TOKEN_SYMBOL_IDENTIFIER:			return parse_expr_statement(ctx);
-
+		case TOKEN_KEYWORD_BREAK:				return parse_break_statement(ctx);
+		case TOKEN_KEYWORD_CONTINUE:			return parse_continue_statement(ctx);
+		
 		case TOKEN_PUNCTUATOR:
 			if (ctx->cur_token->punc_type == PUNC_OPEN_CURLY) return parse_block(ctx);
-
-			if (ctx->cur_token->punc_type == PUNC_MULTIPLY) TODO("handle case of e.g., *p = 10");
-			if (ctx->cur_token->punc_type == PUNC_OPEN_PAREN) TODO("handle case of e.g., (tok)->next = NULL"); 
-
-			else ERR_SYNTAX_CTX(ctx->cl_ctx, ctx->cur_token, /* expected a */ "valid statement token", true);
-			return NULL; // to shut up compiler
+			if (ctx->cur_token->punc_type == PUNC_SEMICOLON) {
+				advance_token(ctx);
+				INFO_CTX(ctx->cl_ctx, "%s:%lu:\tempty statement, can safely be removed", ctx->cur_token->source->filepath, ctx->cur_token->line_number);
+				return NULL;
+			}
+			// deliberate fallthrough here
+			
+		case TOKEN_SYMBOL_IDENTIFIER:			
+		case TOKEN_INT_LITERAL:
+		case TOKEN_FLOAT_LITERAL:
+		case TOKEN_STRING_LITERAL:
+		case TOKEN_NULL:
+			return parse_expr_statement(ctx);
 		
 		default:
 			ERR_SYNTAX_CTX(ctx->cl_ctx, ctx->cur_token, /* expected a */ "valid statement token", true);
@@ -344,9 +350,6 @@ ASTNode *parse_statement(ParserContext *ctx) {
 }
 
 ASTNode *parse_variable_declaration(ParserContext *ctx, bool expect_semicolon, bool* declared) {
-#ifdef DEBUG
-	printf("Parsing variable declaration\n");
-#endif
 	assert(ctx->cur_token->typeinfo != NULL);
 
     TypeInfo* typeinfo = ctx->cur_token->typeinfo;
@@ -356,14 +359,9 @@ ASTNode *parse_variable_declaration(ParserContext *ctx, bool expect_semicolon, b
 		ERR_SYNTAX_CTX(ctx->cl_ctx, ctx->cur_token, /* expected a */ "variable identifer", true);
 	}
 
-	ASTNode *declaration_node = calloc(1, sizeof(ASTNode));
-	declaration_node->node_type = NODE_VARAIBLE_DECLARATION;
-
-    ASTNode *variable_node = calloc(1, sizeof(ASTNode));
-    variable_node->node_type = NODE_VARIABLE;
-
+	ASTNode *declaration_node = new_node_general(ctx, NODE_VARAIBLE_DECLARATION, ctx->cur_token);
+	ASTNode *variable_node = new_node_general(ctx, NODE_VARIABLE, ctx->cur_token);
     variable_node->variable_symbol = new_symbol(ctx, ctx->cur_token->lexeme, typeinfo);
-
 	declaration_node->l_value = variable_node;
 
     advance_token(ctx);
@@ -420,7 +418,7 @@ ASTNode *parse_function_parameter(ParserContext *ctx) {
 	Symbol* param = new_symbol(ctx, param_name, param_type);
 	advance_token(ctx);
 
-	ASTNode* param_node = new_node_general(NODE_PARAMETER, type_ref);
+	ASTNode* param_node = new_node_general(ctx, NODE_PARAMETER, type_ref);
 	param_node->variable_symbol = param;
 
 	return param_node;
@@ -447,7 +445,7 @@ ASTNode *parse_function_parameter(ParserContext *ctx) {
  */
 ASTNode *parse_function(ParserContext *ctx) {
 	assert(ctx->cur_token->token_type == TOKEN_KEYWORD_FUNCTION);
-	ASTNode* func = new_node_general(NODE_FUNCTION, ctx->cur_token);
+	ASTNode* func = new_node_general(ctx, NODE_FUNCTION, ctx->cur_token);
 	advance_token(ctx);
 
 	// function identifier, can be accessed through node->token->lexeme
@@ -527,7 +525,7 @@ ASTNode *parse_function(ParserContext *ctx) {
 	// this is legal
 	// we should just infer the return type is VOID
 	else {
-		func->function_return_type = calloc(1, sizeof(TypeInfo));
+		func->function_return_type = PALLOCT(ctx->arena, TypeInfo, 1);
 		SET_TYPE_VOID(func->function_return_type);
 	}
 
@@ -551,7 +549,7 @@ ASTNode *parse_function(ParserContext *ctx) {
  */
 ASTNode *parse_if_statement(ParserContext *ctx) {
 	assert(ctx->cur_token->token_type == TOKEN_KEYWORD_IF);
-	ASTNode* if_stmt = new_node_general(NODE_IF, ctx->cur_token);
+	ASTNode* if_stmt = new_node_general(ctx, NODE_IF, ctx->cur_token);
 	advance_token(ctx);
 
 	if (	ctx->cur_token->token_type != TOKEN_PUNCTUATOR 
@@ -595,7 +593,7 @@ ASTNode *parse_if_statement(ParserContext *ctx) {
  */
 ASTNode *parse_while_statement(ParserContext *ctx) {
 	assert(ctx->cur_token->token_type == TOKEN_KEYWORD_WHILE);
-	ASTNode* while_stmt = new_node_general(NODE_FOR, ctx->cur_token);
+	ASTNode* while_stmt = new_node_general(ctx, NODE_FOR, ctx->cur_token);
 	advance_token(ctx);
 
 	if (	ctx->cur_token->token_type != TOKEN_PUNCTUATOR 
@@ -612,7 +610,9 @@ ASTNode *parse_while_statement(ParserContext *ctx) {
 	}
 	advance_token(ctx); // consume )
 
+	ctx->loop_depth++;
 	while_stmt->body = parse_block(ctx);
+	ctx->loop_depth--;
 
 	return while_stmt;
 }
@@ -627,7 +627,7 @@ ASTNode *parse_while_statement(ParserContext *ctx) {
  */
 ASTNode *parse_for_statement(ParserContext *ctx) {
 	assert(ctx->cur_token->token_type == TOKEN_KEYWORD_FOR);
-	ASTNode* for_stmt = new_node_general(NODE_FOR, ctx->cur_token);
+	ASTNode* for_stmt = new_node_general(ctx, NODE_FOR, ctx->cur_token);
 	advance_token(ctx);
 
 	if (	ctx->cur_token->token_type != TOKEN_PUNCTUATOR 
@@ -721,7 +721,9 @@ ASTNode *parse_for_statement(ParserContext *ctx) {
 		}
 		advance_token(ctx); // consume )
 
+		ctx->loop_depth++;
 		for_stmt->body = parse_block(ctx);
+		ctx->loop_depth--;
 
 		exit_scope(ctx);
 		return for_stmt;
@@ -756,20 +758,20 @@ ASTNode *parse_for_statement(ParserContext *ctx) {
 		ASTNode* iterator = for_stmt->initial->l_value;
 
 		// set up condition i <= b
-		ASTNode* condition = calloc(1, sizeof(ASTNode));
+		ASTNode* condition = PALLOCT(ctx->arena, ASTNode, 1);
 		condition->node_type = NODE_VARIABLE;
 		condition->variable_symbol = iterator->variable_symbol;
 		condition->token = iterator->token;
 
-		for_stmt->condition = new_node_binary(NODE_LE, condition, b_value, dotdot_token);
+		for_stmt->condition = new_node_binary(ctx, NODE_LE, condition, b_value, dotdot_token);
 
 		// set increment to i++
-		ASTNode* increment = calloc(1, sizeof(ASTNode));
+		ASTNode* increment = PALLOCT(ctx->arena, ASTNode, 1);
 		increment->node_type = NODE_VARIABLE;
 		increment->variable_symbol = iterator->variable_symbol;
 		increment->token = iterator->token;
 
-		for_stmt->increment = new_node_unary(NODE_INCREMENT, increment, increment->token);
+		for_stmt->increment = new_node_unary(ctx, NODE_INCREMENT, increment, increment->token);
 
 		if (	ctx->cur_token->token_type != TOKEN_PUNCTUATOR 
 			|| 	ctx->cur_token->punc_type != PUNC_CLOSE_PAREN	) {
@@ -777,7 +779,9 @@ ASTNode *parse_for_statement(ParserContext *ctx) {
 		}
 		advance_token(ctx); // consume )
 
+		ctx->loop_depth++;
 		for_stmt->body = parse_block(ctx);
+		ctx->loop_depth--;
 
 		exit_scope(ctx);
 		return for_stmt;
@@ -795,7 +799,7 @@ ASTNode *parse_block(ParserContext *ctx) {
 		ERR_SYNTAX_CTX(ctx->cl_ctx, ctx->cur_token, /* expected a */ "open curly '{' for block", true);
 	}
 
-	ASTNode* block = new_node_general(NODE_BLOCK, ctx->cur_token);
+	ASTNode* block = new_node_general(ctx, NODE_BLOCK, ctx->cur_token);
 	advance_token(ctx); // consume {
 
 	if (	ctx->cur_token->token_type == TOKEN_PUNCTUATOR
@@ -842,7 +846,7 @@ ASTNode *parse_return_statement(ParserContext *ctx) {
 	TypeInfo* expected_return_type = ctx->cur_function->function_return_type;
 	assert(expected_return_type != NULL);
 
-	ASTNode* ret = new_node_general(NODE_RETURN, ref);
+	ASTNode* ret = new_node_general(ctx, NODE_RETURN, ref);
 
 	if (	ctx->cur_token->token_type == TOKEN_PUNCTUATOR 
 		&& 	ctx->cur_token->punc_type == PUNC_SEMICOLON		) {
@@ -867,6 +871,44 @@ ASTNode *parse_return_statement(ParserContext *ctx) {
 	return ret;
 }
 
+ASTNode *parse_break_statement(ParserContext *ctx) {
+	assert(ctx->cur_token->token_type == TOKEN_KEYWORD_BREAK);
+
+	if (ctx->loop_depth == 0) {
+		ERR_SYNTAX_CTX(ctx->cl_ctx, ctx->cur_token, /* expected a */ "function to house 'break' statement (stray break)", true);
+	}
+
+	Token* ref = ctx->cur_token;
+	advance_token(ctx); // consume 'break'
+
+	if (	ctx->cur_token->token_type != TOKEN_PUNCTUATOR 
+		|| 	ctx->cur_token->punc_type != PUNC_SEMICOLON		) {
+		ERR_SYNTAX_CTX(ctx->cl_ctx, ctx->cur_token, /* expected a */ "';' semicolon to end break statement", true);
+	}
+	advance_token(ctx); // consume ';'
+
+	return new_node_general(ctx, NODE_BREAK, ref);
+}
+
+ASTNode *parse_continue_statement(ParserContext *ctx) {
+	assert(ctx->cur_token->token_type == TOKEN_KEYWORD_CONTINUE);
+
+	if (ctx->loop_depth == 0) {
+		ERR_SYNTAX_CTX(ctx->cl_ctx, ctx->cur_token, /* expected a */ "function to house 'continue' statement (stray continue)", true);
+	}
+
+	Token* ref = ctx->cur_token;
+	advance_token(ctx); // consume 'continue'
+
+	if (	ctx->cur_token->token_type != TOKEN_PUNCTUATOR 
+		|| 	ctx->cur_token->punc_type != PUNC_SEMICOLON		) {
+		ERR_SYNTAX_CTX(ctx->cl_ctx, ctx->cur_token, /* expected a */ "';' semicolon to end continue statement", true);
+	}
+	advance_token(ctx); // consume ';'
+
+	return new_node_general(ctx, NODE_CONTINUE, ref);
+}
+
 /*
  * Parses an expression statement, i.e. any expression followed by a semicolon.
  * Returns a NODE_EXPR_STMT node, with the expression stored in the ASTNode's l_value field.
@@ -882,7 +924,7 @@ ASTNode *parse_expr_statement(ParserContext *ctx) {
 	}
 
 	advance_token(ctx);
-	ASTNode* statement = new_node_general(NODE_EXPR_STMT, ref);
+	ASTNode* statement = new_node_general(ctx, NODE_EXPR_STMT, ref);
 	statement->l_value = expr;
 	return statement;
 }
@@ -937,7 +979,7 @@ ASTNode *parse_variable_assignment(ParserContext *ctx) {
 		// here instead we do recursive call because assignment links right to left 
 		// i.e. a = b = c   <====> a = (b = c)
 		ASTNode* right = parse_variable_assignment(ctx);
-		return new_node_binary(NODE_ASSIGN, left, right, ref);
+		return new_node_binary(ctx, NODE_ASSIGN, left, right, ref);
 	}
 
 	if (	ctx->cur_token->token_type == TOKEN_PUNCTUATOR
@@ -984,11 +1026,11 @@ ASTNode *parse_variable_assignment(ParserContext *ctx) {
 			case PUNC_XOREQ:	optype = NODE_BITXOR; break;
 			case PUNC_RS_EQ:	optype = NODE_SHR; break;
 			case PUNC_LS_EQ:	optype = NODE_SHL; break;
-			default: ERR_GENERAL("Unreachable");
+			default: ERR_HALT_CTX(ctx->cl_ctx, "Unreachable");
 		}
 
-		ASTNode* rhs = new_node_binary(optype, left, right, ref);
-		return new_node_binary(NODE_ASSIGN, left, rhs, ref); 
+		ASTNode* rhs = new_node_binary(ctx, optype, left, right, ref);
+		return new_node_binary(ctx, NODE_ASSIGN, left, rhs, ref); 
 	}
 
 	return left;
@@ -1009,7 +1051,7 @@ ASTNode* parse_logical_or(ParserContext* ctx) {
 		advance_token(ctx);
 
 		ASTNode* right = parse_logical_and(ctx);
-		left = new_node_binary(NODE_LOGOR, left, right, ref);
+		left = new_node_binary(ctx, NODE_LOGOR, left, right, ref);
 		/* the new_node_binary part forms the tree, basically we have just done
 		 *		 LOG_OR
 		 *		/		\
@@ -1031,7 +1073,7 @@ ASTNode* parse_logical_and(ParserContext* ctx) {
 		advance_token(ctx);
 
 		ASTNode* right = parse_bitwise_or(ctx);
-		left = new_node_binary(NODE_LOGAND, left, right, ref);
+		left = new_node_binary(ctx, NODE_LOGAND, left, right, ref);
 	}
 
 	return left;
@@ -1047,7 +1089,7 @@ ASTNode* parse_bitwise_or(ParserContext* ctx) {
 		advance_token(ctx);
 
 		ASTNode* right = parse_bitwise_xor(ctx);
-		left = new_node_binary(NODE_BITOR, left, right, ref);
+		left = new_node_binary(ctx, NODE_BITOR, left, right, ref);
 	}
 
 	return left;
@@ -1063,7 +1105,7 @@ ASTNode* parse_bitwise_xor(ParserContext* ctx) {
 		advance_token(ctx);
 
 		ASTNode* right = parse_bitwise_and(ctx);
-		left = new_node_binary(NODE_BITXOR, left, right, ref);
+		left = new_node_binary(ctx, NODE_BITXOR, left, right, ref);
 	}
 
 	return left;
@@ -1080,7 +1122,7 @@ ASTNode* parse_bitwise_and(ParserContext* ctx) {
 		advance_token(ctx);
 
 		ASTNode* right = parse_equality(ctx);
-		left = new_node_binary(NODE_BITAND, left, right, ref);
+		left = new_node_binary(ctx, NODE_BITAND, left, right, ref);
 	}
 
 	return left;
@@ -1098,8 +1140,8 @@ ASTNode* parse_equality(ParserContext* ctx) {
 		advance_token(ctx);
 
 		ASTNode* right = parse_comparison(ctx);
-		left = (type == PUNC_EQUALITY) ? new_node_binary(NODE_EQ, left, right, ref)
-									   : new_node_binary(NODE_NE, left, right, ref);
+		left = (type == PUNC_EQUALITY) ? new_node_binary(ctx, NODE_EQ, left, right, ref)
+									   : new_node_binary(ctx, NODE_NE, left, right, ref);
 	}
 
 	return left;
@@ -1121,11 +1163,11 @@ ASTNode* parse_comparison(ParserContext* ctx) {
 		ASTNode* right = parse_bitwise_shift(ctx);
 		
 		switch (type) {
-			case PUNC_LESSTHAN: left = new_node_binary(NODE_LT, left, right, ref); break;
-			case PUNC_GREATER:  left = new_node_binary(NODE_GT, left, right, ref); break;
-			case PUNC_GEQ: 		left = new_node_binary(NODE_GE, left, right, ref); break;
-			case PUNC_LEQ: 		left = new_node_binary(NODE_LE, left, right, ref); break;
-			default: ERR_GENERAL("Unreachable");
+			case PUNC_LESSTHAN: left = new_node_binary(ctx, NODE_LT, left, right, ref); break;
+			case PUNC_GREATER:  left = new_node_binary(ctx, NODE_GT, left, right, ref); break;
+			case PUNC_GEQ: 		left = new_node_binary(ctx, NODE_GE, left, right, ref); break;
+			case PUNC_LEQ: 		left = new_node_binary(ctx, NODE_LE, left, right, ref); break;
+			default: ERR_HALT_CTX(ctx->cl_ctx, "Unreachable");
 		}
 	}
 
@@ -1144,8 +1186,8 @@ ASTNode* parse_bitwise_shift(ParserContext* ctx) {
 		advance_token(ctx);
 
 		ASTNode* right = parse_term(ctx);
-		left = (type == PUNC_LS) 	? new_node_binary(NODE_SHL, left, right, ref)
-									: new_node_binary(NODE_SHR, left, right, ref);
+		left = (type == PUNC_LS) 	? new_node_binary(ctx, NODE_SHL, left, right, ref)
+									: new_node_binary(ctx, NODE_SHR, left, right, ref);
 	}
 
 	return left;
@@ -1163,8 +1205,8 @@ ASTNode* parse_term(ParserContext* ctx) {
 		advance_token(ctx);
 
 		ASTNode* right = parse_factor(ctx);
-		left = (type == PUNC_ADDITION) ? new_node_binary(NODE_ADD, left, right, ref)
-									   : new_node_binary(NODE_SUB, left, right, ref);
+		left = (type == PUNC_ADDITION) ? new_node_binary(ctx, NODE_ADD, left, right, ref)
+									   : new_node_binary(ctx, NODE_SUB, left, right, ref);
 	}
 
 	return left;
@@ -1185,10 +1227,10 @@ ASTNode* parse_factor(ParserContext* ctx) {
 		ASTNode* right = parse_exponentiation(ctx);
 		
 		switch (type) {
-			case PUNC_MULTIPLY: left = new_node_binary(NODE_MUL, left, right, ref); break;
-			case PUNC_DIVIDE:   left = new_node_binary(NODE_DIV, left, right, ref); break;
-			case PUNC_MOD: 		left = new_node_binary(NODE_MOD, left, right, ref); break;
-			default: ERR_GENERAL("Unreachable");
+			case PUNC_MULTIPLY: left = new_node_binary(ctx, NODE_MUL, left, right, ref); break;
+			case PUNC_DIVIDE:   left = new_node_binary(ctx, NODE_DIV, left, right, ref); break;
+			case PUNC_MOD: 		left = new_node_binary(ctx, NODE_MOD, left, right, ref); break;
+			default: ERR_HALT_CTX(ctx->cl_ctx, "Unreachable");
 		}
 	}
 
@@ -1206,7 +1248,7 @@ ASTNode* parse_exponentiation(ParserContext* ctx) {
 		advance_token(ctx);
 
 		ASTNode* right = parse_exponentiation(ctx);
-		return new_node_binary(NODE_EXP, left, right, ref);
+		return new_node_binary(ctx, NODE_EXP, left, right, ref);
 	}
 
 	return left;
@@ -1228,11 +1270,11 @@ ASTNode* parse_unary(ParserContext* ctx) {
 			ASTNode* operand = parse_unary(ctx);
 			
 			switch (type) {
-				case PUNC_LOGICAL_NOT: 	return new_node_unary(NODE_NOT, operand, ref);
-				case PUNC_AMPERSAND: 	return new_node_unary(NODE_ADDR, operand, ref);
-				case PUNC_BITWISE_NOT: 	return new_node_unary(NODE_BITNOT, operand, ref);
-				case PUNC_SUBTRACTION: 	return new_node_unary(NODE_NEG, operand, ref);
-				case PUNC_MULTIPLY: 	return new_node_unary(NODE_DEREF, operand, ref);
+				case PUNC_LOGICAL_NOT: 	return new_node_unary(ctx, NODE_NOT, operand, ref);
+				case PUNC_AMPERSAND: 	return new_node_unary(ctx, NODE_ADDR, operand, ref);
+				case PUNC_BITWISE_NOT: 	return new_node_unary(ctx, NODE_BITNOT, operand, ref);
+				case PUNC_SUBTRACTION: 	return new_node_unary(ctx, NODE_NEG, operand, ref);
+				case PUNC_MULTIPLY: 	return new_node_unary(ctx, NODE_DEREF, operand, ref);
 				default: ERR_HALT_CTX(ctx->cl_ctx, "Unreachable");
 			}
 		}
@@ -1259,7 +1301,7 @@ ASTNode* parse_postfix(ParserContext* ctx) {
 					ERR_SYNTAX_CTX(ctx->cl_ctx, ctx->cur_token, /* expected a */ "member identifier", true);
 				}
 
-				left = new_node_memidentifier(left, ctx->cur_token->lexeme, ref);
+				left = new_node_memidentifier(ctx, left, ctx->cur_token->lexeme, ref);
 				advance_token(ctx);
 				break;
 			}
@@ -1273,7 +1315,7 @@ ASTNode* parse_postfix(ParserContext* ctx) {
 					ERR_SYNTAX_CTX(ctx->cl_ctx, ctx->cur_token, /* expected a */ "closing square bracket ']'" , true);
 				}
 
-				left = new_node_binary(NODE_INDEX, left, right, ref);
+				left = new_node_binary(ctx, NODE_INDEX, left, right, ref);
 				advance_token(ctx);
 				break;
 			}
@@ -1291,8 +1333,8 @@ ASTNode* parse_postfix(ParserContext* ctx) {
 			case PUNC_INCREMENT:
 			case PUNC_DECREMENT: {
 				advance_token(ctx);
-				left = (type == PUNC_INCREMENT) ? new_node_unary(NODE_INCREMENT, left, ref)
-												: new_node_unary(NODE_DECREMENT, left, ref);
+				left = (type == PUNC_INCREMENT) ? new_node_unary(ctx, NODE_INCREMENT, left, ref)
+												: new_node_unary(ctx, NODE_DECREMENT, left, ref);
 				break;
 			}
 			
@@ -1335,7 +1377,7 @@ ASTNode* parse_else(ParserContext* ctx) {
 		}
 
 		case TOKEN_STRING_LITERAL: {
-            ASTNode* str_node = calloc(1, sizeof(ASTNode));
+            ASTNode* str_node = PALLOCT(ctx->arena, ASTNode, 1);
             str_node->node_type = NODE_LITERAL_STRING;
             str_node->token = ctx->cur_token;
             
@@ -1344,7 +1386,7 @@ ASTNode* parse_else(ParserContext* ctx) {
         }
 		
 		case TOKEN_SYMBOL_IDENTIFIER: {
-            ASTNode* var_node = calloc(1, sizeof(ASTNode));
+            ASTNode* var_node = PALLOCT(ctx->arena, ASTNode, 1);
 			NodeType type = NODE_VARIABLE;
 
 			Token* peek = ctx->cur_token->next;
@@ -1378,7 +1420,7 @@ ASTNode* parse_else(ParserContext* ctx) {
 
 		case TOKEN_INT_LITERAL:
 		case TOKEN_FLOAT_LITERAL: {
-			ASTNode* val = calloc(1, sizeof(ASTNode));
+			ASTNode* val = PALLOCT(ctx->arena, ASTNode, 1);
 			val->node_type = ctx->cur_token->token_type == TOKEN_INT_LITERAL ? NODE_LITERAL_INT : NODE_LITERAL_FLOAT;
 
 			val->token = ctx->cur_token;
@@ -1387,7 +1429,7 @@ ASTNode* parse_else(ParserContext* ctx) {
 		}
 
 		case TOKEN_NULL: {
-			ASTNode* null_val = calloc(1, sizeof(ASTNode));
+			ASTNode* null_val = PALLOCT(ctx->arena, ASTNode, 1);
 			null_val->node_type = NODE_NULL_EXPR;
 			advance_token(ctx);
 			return null_val;
@@ -1400,6 +1442,17 @@ ASTNode* parse_else(ParserContext* ctx) {
 	return NULL;
 }
 
+Symbol* get_ith_parameter_symbol(ASTNode* param_head, size_t i) {
+	assert(param_head != NULL);
+
+	for (; i > 0; i--) {
+		param_head = param_head->next;
+		assert(param_head != NULL);
+	}
+
+	return param_head->variable_symbol;
+}
+
 ASTNode* parse_function_call(ParserContext* ctx, ASTNode** rest) {
 	assert(	ctx->cur_token->token_type == TOKEN_PUNCTUATOR 
 		&& 	ctx->cur_token->punc_type == PUNC_OPEN_PAREN		);
@@ -1410,18 +1463,41 @@ ASTNode* parse_function_call(ParserContext* ctx, ASTNode** rest) {
 
 	Token* ref = ctx->cur_token;
 	advance_token(ctx);
-	ASTNode* func_call = calloc(1, sizeof(ASTNode));
+	ASTNode* func_call = PALLOCT(ctx->arena, ASTNode, 1);
 	func_call->l_value = *rest;
 	func_call->node_type = NODE_FUNCTION_CALL;
 	func_call->token = ref;
+	func_call->function_to_call = cur_func_call; 
 
 	ASTNode* args = NULL;
+	ASTNode* param = cur_func_call->l_value;
+
 	size_t provided_arg_count = 0;
+	bool named_arg = false;
+	char* param_ref_name = NULL;
 	if (	ctx->cur_token->token_type != TOKEN_PUNCTUATOR 
 		|| 	ctx->cur_token->punc_type != PUNC_CLOSE_PAREN	) {
 		for (bool more_args = true; more_args;) {
+			named_arg = false;
+
+			// checking for named arguments
+			if (	ctx->cur_token->token_type == TOKEN_SYMBOL_IDENTIFIER
+				&&	ctx->cur_token->next != NULL
+				&&	ctx->cur_token->next->token_type == TOKEN_PUNCTUATOR
+				&&	ctx->cur_token->next->punc_type == PUNC_ASSIGNMENT	) {
+				assert(ctx->cur_token->lexeme != NULL); // just to be safe
+				param_ref_name = ctx->cur_token->lexeme;
+				named_arg = true;
+
+				advance_token(ctx); // consume param name ref
+				advance_token(ctx); // consume '='
+			}
+
 			provided_arg_count++;
 			ASTNode* cur_arg = parse_expression(ctx);
+
+			if (named_arg) cur_arg->parameter_name_reference = param_ref_name;
+			else cur_arg->parameter_name_reference = NULL;
 		
 			if (args == NULL) args = cur_arg;
 			else {
@@ -1446,6 +1522,81 @@ ASTNode* parse_function_call(ParserContext* ctx, ASTNode** rest) {
 		ERR_SEMANTIC_CTX(ctx->cl_ctx, ctx->cur_token, /* expected a */ "provided too few function arguments in function call", true);
 	}
 
+	// match args to parameters
+	// we could probably use a hashmap to speed this up but most likely n <= 10 so O(n^2) and O(n) make no real difference
+	bool seen_named_argument = false;
+	if (param) {
+		ASTNode** ordered_args = PALLOCT(ctx->arena, ASTNode*, expected_param_count);
+		size_t i = 0;
+
+		for (ASTNode* cur_arg = args; cur_arg != NULL; cur_arg = cur_arg->next) {
+			size_t param_index = 0;
+
+			if (cur_arg->parameter_name_reference == NULL) {
+				// unnamed argument
+				// so we just assume arg[i] references param[i]
+				
+				/* 
+				* UNLESS this logic occurs after a named param already has been defined
+				* in which case this is erroneous behaviour.
+				* 
+				* for example
+				* fn foo(i32 a, i32 b, i32 c, i32 d) -> void { ... }
+				* 
+				* foo(1, 2, 3, 4) 		==> a=1, b=2, c=3, d=4
+				* foo(1, 2, d=4, c=3)	==> a=1, b=2, c=3, d=4 (this is fine, because after the first named argument 'd', all conseqeuent arguments, namely just 'c', are named)
+				* foo(1, 2, d=4, 3)	==> erroneous, unnamed argument after named argument
+				* foo(1, 2, c=3, d)	==> erroneous, unnamed argument after named argument, even though order is preserved
+				*/
+
+				if (seen_named_argument) {
+					ERR_GENERAL_CTX(ctx->cl_ctx, "%s:%lu:\terroneous behaviour, unnamed argument after named argument", ctx->cur_token->source->filepath, ctx->cur_token->line_number);
+				}
+
+				param_index = i;
+				cur_arg->parameter_sym_reference = get_ith_parameter_symbol(param, i);
+				i++;
+			}
+			else {
+				seen_named_argument = true;
+				bool found = false;
+
+				for (ASTNode* cur_param = param; cur_param != NULL; cur_param = cur_param->next, param_index++) {
+					// printf("comparing %s (param) to %s (arg target)\n", cur_param->variable_symbol->name, cur_arg->parameter_name_reference);
+					if (strcmp(cur_param->variable_symbol->name, cur_arg->parameter_name_reference) == 0) {
+						cur_arg->parameter_sym_reference = cur_param->variable_symbol;
+						i++;
+						found = true;
+						break;
+					}
+				}
+				
+				if (!found) {
+					ERR_HALT_CTX(ctx->cl_ctx, "%s:%lu:\tnamed argument '%s' does not refer to any parameter of the function call", ctx->cur_token->source->filepath, ctx->cur_token->line_number, cur_arg->parameter_name_reference);
+				}
+			}
+
+			// each parameter can only be given one value
+			// for instance we can't do foo(a=1, a=2)
+
+			if (ordered_args[param_index] != NULL) {
+				ERR_HALT_CTX(ctx->cl_ctx, "%s:%lu:\tparameter '%s' was given more than one argument in function call", ctx->cur_token->source->filepath, ctx->cur_token->line_number, cur_arg->parameter_sym_reference->name);
+			}
+			ordered_args[param_index] = cur_arg;
+		}
+
+		// now we have found out what references what, we need to order the arguments correctly such that they correspond to the actual parameter ordering
+		// for instance, foo(1, 2, d=4, c=3) should just translate directly to foo(1, 2, 3, 4);
+		if (seen_named_argument) {
+			args = ordered_args[0];
+
+			for (size_t i = 0; i < expected_param_count - 1; i++) {
+				ordered_args[i]->next = ordered_args[i+1];
+			}
+			ordered_args[expected_param_count - 1]->next = NULL;
+		}
+	}
+
 	if (	ctx->cur_token->token_type != TOKEN_PUNCTUATOR 
 		|| 	ctx->cur_token->punc_type != PUNC_CLOSE_PAREN	) {
 		ERR_SYNTAX_CTX(ctx->cl_ctx, ctx->cur_token, /* expected a */ "')' to close function arguments", true);
@@ -1462,6 +1613,7 @@ const char* node_to_str(NodeType type) {
     switch (type) {
         case NODE_VARAIBLE_DECLARATION: return "VARIABLE_DECLARATION";
         case NODE_VARIABLE:             return "VARIABLE";
+		case NODE_NAMED_ARGUMENT:		return "NAMED_ARGUMENT";
         case NODE_LITERAL_INT:          return "LITERAL_INT";
         case NODE_LITERAL_FLOAT:        return "LITERAL_FLOAT";
         case NODE_LITERAL_STRING:       return "LITERAL_STRING";
@@ -1503,6 +1655,8 @@ const char* node_to_str(NodeType type) {
 		case NODE_BLOCK:				return "BLOCK";
 		case NODE_PARAMETER:			return "PARAMETER";
 		case NODE_RETURN:				return "RETURN";
+		case NODE_CONTINUE:				return "CONTINUE";
+		case NODE_BREAK:				return "BREAK";
         default:                        printf("%d ", type); return "UNKNOWN_NODE";
     }
 }

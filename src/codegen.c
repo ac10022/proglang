@@ -1,4 +1,5 @@
 #include "codegen.h"
+#include "file.h"
 
 /*
  * TODO: the function has to extract the name of .s file, i.e: main.proglang -> main.s
@@ -8,10 +9,8 @@
  * will be most likely deleted after program compilation
  *
  */
-char *create_asm_outpath(char *filepath) {
-    char *outpath = "";
-
-    return outpath;
+char *create_asm_outpath(Arena* arena, char *filepath) {
+    return replace_ext(arena, filepath, ".s");
 }
 
 void initialise_codegen_context(
@@ -35,9 +34,10 @@ void initialise_codegen_context(
     codegen_context->next_offset = -8;
 }
 
-void generate_asm(IRInstruction *head, CompilerContext *c_ctx, Target target) {
-    //char *outpath = create_asm_outpath(c_ctx->filepath);
-    char *outpath = "a.s";
+void generate_asm(OptimiserOutput optim_out, CompilerContext *c_ctx, char** fileout) {
+    char *outpath = create_asm_outpath(c_ctx->arena, c_ctx->filepath);
+    if (fileout) *fileout = NULL;
+
     FILE *out = fopen(outpath, "w");
 
     if (!out) {
@@ -48,7 +48,7 @@ void generate_asm(IRInstruction *head, CompilerContext *c_ctx, Target target) {
     CodegenContext codegen_context = {};
     initialise_codegen_context(&codegen_context, c_ctx, out, target);
 
-    IRInstruction *current_instruction = head;
+    IRInstruction *current_instruction = optim_out.instructions;
     for (; current_instruction->op != IR_HALT; current_instruction = current_instruction->next) {
         switch (current_instruction->op) {
             case (IR_BEGIN_FUNC):
@@ -61,15 +61,17 @@ void generate_asm(IRInstruction *head, CompilerContext *c_ctx, Target target) {
                 break;
         }
     }
+
+    if (fileout) *fileout = outpath;
 }
 
 bool is_variable(IROperand operand) {
     return operand.type == IROP_SYMBOL || operand.type == IROP_TEMP;
 }
 bool operand_equals(IROperand a, IROperand b) {
-    if (a.type != b.type) return false;
-    if (a.type == IROP_TEMP)   return a.temp_id == b.temp_id;
-    if (a.type == IROP_SYMBOL) return a.sym == b.sym;
+    if (a.type != b.type)       return false;
+    if (a.type == IROP_TEMP)    return a.temp_id == b.temp_id;
+    if (a.type == IROP_SYMBOL)  return a.sym == b.sym;
     return false;
 }
 FrameSlot *add_slot(CodegenContext *codegen_context, IROperand operand) {
