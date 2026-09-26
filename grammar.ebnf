@@ -1,0 +1,141 @@
+(*
+    This file defines the Extended Backus–Naur form used to specify the syntax of proglang.
+    Any expression derivable from the starting point is valid syntax in the language.
+    Learn more here: https://en.wikipedia.org/wiki/Extended_Backus%E2%80%93Naur_form
+*)
+
+FUNC-DEF 
+    = FUNC-SIGNATURE BLOCK
+
+FUNC-SIGNATURE 
+    = 'fn' FUNC-IDENTIFIER '(' FUNC-PARAMETERS ')' FUNC-RETURN-TYPE
+
+FUNC-IDENTIFIER 
+    = VAR-IDENTIFIER
+
+FUNC-PARAMETERS 
+    =   ε 
+    |   'void' 
+    |   FUNC-PARAMETER-LIST
+
+FUNC-PARAMETER-LIST 
+    =   FUNC-PARAMETER ',' FUNC-PARAMETER-LIST 
+    |   FUNC-PARAMETER
+
+FUNC-PARAMETER
+    =   TYPE VAR-IDENTIFIER
+
+FUNC-RETURN-TYPE
+    =   ε
+    |   '->' TYPE
+
+STMT
+    =   NULL-STMT
+    |   FOR-STMT
+    |   IF-STMT
+    |   WHILE-STMT
+    |   BREAK-STMT
+    |   CONTINUE-STMT
+    |   RETURN-STMT
+    |   EXPR-STMT
+    |   BLOCK
+
+NULL-STMT
+    =   ';'
+
+FOR-STMT
+    =   'for' '(' FOR-CLAUSE ')' BLOCK
+
+FOR-ITERATOR (* logically, the type variant is for variables not already defined, and the other is for pre-defined variables *)
+    =   TYPE VAR-IDENTIFIER
+    |   IDENTIFIER
+
+FOR-ASSIGNMENT
+    =   TYPE VAR-IDENTIFIER '=' EXPR
+    |   VAR-IDENTIFIER '=' EXPR
+    |   ε
+
+FOR-CLAUSE
+    =   FOR-ITERATOR 'in' EXPR '..' EXPR
+    |   FOR-ASSIGNMENT ';' EXPR ';' EXPR
+
+EXPR
+    =   (* TODO *)
+
+VAR-IDENTIFIER
+    =   (* TODO *)
+
+TYPE
+    =   (* TODO *)
+
+LOWERCASE-LATIN
+    =   'a'
+    |   'b'
+    |   'c'
+    |   'd'
+    |   'e'
+    |   'f'
+    |   'g'
+    |   'h'
+    |   'i'
+    |   'j'
+    |   'k'
+    |   'l'
+    |   'm'
+    |   'n'
+    |   'o'
+    |   'p'
+    |   'q'
+    |   'r'
+    |   's'
+    |   't'
+    |   'u'
+    |   'v'
+    |   'w'
+    |   'x'
+    |   'y'
+    |   'z'
+
+UPPERCASE-LATIN
+    =   'A'
+    |   'B'
+    |   'C'
+    |   'D'
+    |   'E'
+    |   'F'
+    |   'G'
+    |   'H'
+    |   'I'
+    |   'J'
+    |   'K'
+    |   'L'
+    |   'M'
+    |   'N'
+    |   'O'
+    |   'P'
+    |   'Q'
+    |   'R'
+    |   'S'
+    |   'T'
+    |   'U'
+    |   'V'
+    |   'W'
+    |   'X'
+    |   'Y'
+    |   'Z'
+
+LATIN
+    =   LOWERCASE-LATIN
+    |   UPPERCASE-LATIN
+
+DIGIT
+    =   '0'
+    |   '1'
+    |   '2'
+    |   '3'
+    |   '4'
+    |   '5'
+    |   '6'
+    |   '7'
+    |   '8'
+    |   '9'

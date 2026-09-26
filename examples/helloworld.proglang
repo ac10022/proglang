@@ -7,5 +7,4 @@ fn main(i32 argc, char** argv) {
     print("Hello World!", target=stdout);
     print("Hello World!2", target=stdout);
     print("Hello World!", target=stdout);
-    print("Hello World!", target=stdout);
 }
